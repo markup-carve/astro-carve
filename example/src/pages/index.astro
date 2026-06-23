@@ -1,0 +1,15 @@
+---
+import html, { frontmatterData } from '../content/doc.crv'
+
+const title = (frontmatterData.title as string) ?? 'Carve page'
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <main id="carve-content" set:html={html} />
+  </body>
+</html>

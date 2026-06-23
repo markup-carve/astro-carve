@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.log
+example/node_modules/
+example/dist/
+example/.astro/
