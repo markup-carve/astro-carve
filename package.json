@@ -1,7 +1,6 @@
 {
   "name": "astro-carve",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Astro integration for the Carve markup language - use .crv/.carve files as pages and imports, rendered to HTML via carve-js",
   "license": "MIT",
