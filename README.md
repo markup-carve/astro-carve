@@ -9,7 +9,7 @@ with [carve-js](https://github.com/markup-carve/carve-js)
 ## Install
 
 ```bash
-npm install astro-carve
+npm install @markup-carve/astro-carve
 ```
 
 `astro` is a peer dependency. carve-js (`@markup-carve/carve`) is a regular
@@ -22,7 +22,7 @@ Add the integration to your Astro config:
 ```js
 // astro.config.mjs
 import { defineConfig } from 'astro/config'
-import carve from 'astro-carve'
+import carve from '@markup-carve/astro-carve'
 
 export default defineConfig({
   integrations: [carve()],
@@ -122,7 +122,7 @@ The transform is also exported as a standalone Vite plugin, so it works in any
 Vite app, not only Astro:
 
 ```js
-import { carveVitePlugin } from 'astro-carve'
+import { carveVitePlugin } from '@markup-carve/astro-carve'
 
 export default {
   plugins: [carveVitePlugin()],

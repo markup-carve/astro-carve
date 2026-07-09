@@ -1,5 +1,5 @@
 {
-  "name": "astro-carve",
+  "name": "@markup-carve/astro-carve",
   "version": "0.1.0",
   "type": "module",
   "description": "Astro integration for the Carve markup language - use .crv files as pages and imports, rendered to HTML via carve-js",
