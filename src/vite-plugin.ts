@@ -7,7 +7,7 @@ import {
 } from './transform.js'
 
 /**
- * Vite plugin that turns Carve modules (`*.crv`, `*.carve`) into JavaScript
+ * Vite plugin that turns Carve modules (`*.crv`) into JavaScript
  * modules exporting the rendered HTML and frontmatter. This is the engine
  * behind the Astro integration and is reusable on its own in any Vite app.
  */

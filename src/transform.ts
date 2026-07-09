@@ -16,7 +16,7 @@ export interface CarveFrontmatter {
 }
 
 export interface CarveTransformOptions {
-  /** Which module ids count as Carve. Default: `*.crv` and `*.carve`. */
+  /** Which module ids count as Carve. Default: `*.crv`. */
   include?: RegExp
   /**
    * Options forwarded to carve-js (`carveToHtml`). Includes `extensions`
@@ -39,7 +39,7 @@ export interface CarveTransformResult {
   frontmatterData: Record<string, unknown>
 }
 
-export const DEFAULT_INCLUDE = /\.(?:crv|carve)$/
+export const DEFAULT_INCLUDE = /\.crv$/
 
 /**
  * Minimal, dependency-free `key: value` frontmatter reader. It handles the

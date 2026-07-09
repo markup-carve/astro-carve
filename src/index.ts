@@ -4,7 +4,7 @@ import type { CarveTransformOptions } from './transform.js'
 
 export type CarveIntegrationOptions = CarveTransformOptions & {
   /**
-   * Register `.crv`/`.carve` as Astro page extensions via the (unstable,
+   * Register `.crv` as Astro page extensions via the (unstable,
    * undocumented) `addPageExtension` hook. Default `false`.
    *
    * Why off by default: registering the extension makes Astro treat a
@@ -21,12 +21,12 @@ export type CarveIntegrationOptions = CarveTransformOptions & {
   pageExtensions?: boolean
 }
 
-const PAGE_EXTENSIONS = ['.crv', '.carve']
+const PAGE_EXTENSIONS = ['.crv']
 
 /**
  * Astro integration for the Carve markup language.
  *
- * Wires a Vite plugin that compiles `.crv`/`.carve` files to modules
+ * Wires a Vite plugin that compiles `.crv` files to modules
  * exporting the carve-js-rendered `html` (default export), the raw
  * `source`, the raw `frontmatter`, and parsed `frontmatterData`. This makes
  * `import html from './doc.crv'` work inside `.astro` components - the

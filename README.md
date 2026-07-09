@@ -2,7 +2,7 @@
 
 An [Astro](https://astro.build) integration for the
 [Carve](https://markup-carve.github.io/carve/) markup language. It lets you
-author content in `.crv` / `.carve` files and render it to HTML at build time
+author content in `.crv` files and render it to HTML at build time
 with [carve-js](https://github.com/markup-carve/carve-js)
 (`@markup-carve/carve`).
 
@@ -64,7 +64,7 @@ The build emits the carve-js-rendered HTML into your static output.
 
 ## What a `.crv` import exports
 
-Each `.crv` / `.carve` module exports:
+Each `.crv` module exports:
 
 | Export            | Type                                       | Description                                              |
 | ----------------- | ------------------------------------------ | -------------------------------------------------------- |
@@ -83,8 +83,8 @@ quoted strings). For structured YAML, run your own parser over
 
 ```js
 carve({
-  // Which module ids count as Carve. Default: /\.(?:crv|carve)$/
-  include: /\.(?:crv|carve)$/,
+  // Which module ids count as Carve. Default: /\.crv$/
+  include: /\.crv$/,
 
   // Forwarded to carve-js carveToHtml (extensions, heading-id options, ...).
   render: {},
@@ -92,7 +92,7 @@ carve({
   // Parse simple key: value frontmatter into frontmatterData. Default true.
   parseFrontmatter: true,
 
-  // Register .crv/.carve as Astro page extensions. Default false. See below.
+  // Register .crv as Astro page extensions. Default false. See below.
   pageExtensions: false,
 })
 ```
@@ -102,7 +102,7 @@ pass through `render`.
 
 ## Integration surfaces
 
-- Verified and supported: importing a `.crv` / `.carve` file into an `.astro`
+- Verified and supported: importing a `.crv` file into an `.astro`
   page or component (`import html from './doc.crv'`). The example project
   builds this with a real `astro build` and the rendered Carve HTML appears in
   the static output.

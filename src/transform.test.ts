@@ -100,12 +100,10 @@ describe('carveVitePlugin', () => {
     expect(result.code).toContain('export default html;')
   })
 
-  test('transforms .carve modules too', async () => {
+  test('ignores .carve modules', async () => {
     const plugin = carveVitePlugin()
     const result = await runTransform(plugin, '# Hi', '/tmp/example.carve')
-    expect(result).toBeTruthy()
-    if (!result || typeof result === 'string') throw new Error('no result')
-    expect(result.code).toContain('Hi</h1>')
+    expect(result).toBeNull()
   })
 
   test('ignores non-Carve modules', async () => {
