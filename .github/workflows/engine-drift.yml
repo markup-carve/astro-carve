@@ -80,6 +80,47 @@ jobs:
             echo "::warning::${pkg} ${latest} is published, but the range ${range} takes ${resolved} - a major-bumped release does not arrive on its own"
           fi
           echo "latest=${latest}" >> "${GITHUB_OUTPUT}"
+          echo "range=${range}" >> "${GITHUB_OUTPUT}"
+          echo "resolved=${resolved}" >> "${GITHUB_OUTPUT}"
+
+      - name: Compare the LOCKFILE against what the range resolves to
+        run: |
+          set -euo pipefail
+          pkg='@markup-carve/carve'
+          range='${{ steps.registry.outputs.range }}'
+          resolved='${{ steps.registry.outputs.resolved }}'
+          # The step above reads package.json. CI installs with "npm ci", which
+          # reads package-lock.json and ignores the range entirely - so the
+          # range being current is not evidence that anything built here is.
+          # Measured on this repo: with the lockfile pointing at a version that
+          # does not exist on the registry, every check above still passed,
+          # because none of them opens the lockfile. That is the carve#755
+          # shape - a check that cannot fail on the artifact it is supposed to
+          # be watching.
+          locked="$(node -p "
+            const l = require('./package-lock.json');
+            const e = (l.packages || {})['node_modules/${pkg}'];
+            e && e.version ? e.version : ''
+          ")"
+          if [ -z "${locked}" ]; then
+            echo "::error::${pkg} is declared in package.json but absent from package-lock.json - an npm ci install would not bring the engine in at all"
+            exit 1
+          fi
+          case "${locked}" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::the lockfile entry for ${pkg} read back as \"${locked}\", which is not a version - the comparison below would be meaningless"; exit 1 ;;
+          esac
+          echo "lockfile holds  ${locked}"
+          echo "range takes     ${resolved}"
+          # A lock the declared range would refuse is an internally broken repo
+          # rather than upstream movement, so that one fails.
+          if ! npx --yes semver --range "${range}" "${locked}" >/dev/null 2>&1; then
+            echo "::error::package-lock.json pins ${pkg} ${locked}, which does NOT satisfy the declared range ${range} - package.json and the lockfile disagree about which engine this repo builds against"
+            exit 1
+          fi
+          if [ "${locked}" != "${resolved}" ]; then
+            echo "::warning::an npm ci install brings in ${pkg} ${locked}, but the declared range ${range} now takes ${resolved} - every test in this repo runs against ${locked}, so a green suite here says nothing about ${resolved}. Refresh with npm update ${pkg} and commit the lockfile."
+          fi
 
       - name: Check out the engine
         uses: actions/checkout@v4
