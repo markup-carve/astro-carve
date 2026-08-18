@@ -13,7 +13,7 @@ npm install @markup-carve/astro-carve
 ```
 
 `astro` is a peer dependency. carve-js (`@markup-carve/carve`) is a regular
-dependency, installed from its git repository.
+dependency, installed from npm, so the command above is all that is needed.
 
 ## Usage
 

@@ -34,7 +34,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@markup-carve/carve": "^0.1.2"
+    "@markup-carve/carve": "^0.1.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
