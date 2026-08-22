@@ -144,7 +144,3 @@ declare module '*.crv' {
   export default _default
 }
 ```
-
-## License
-
-MIT
