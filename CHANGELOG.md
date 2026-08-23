@@ -6,6 +6,14 @@ Rendering is done by the Carve engine (`@markup-carve/carve`), so an engine
 change can alter output with no plugin diff. Engine bumps therefore get an
 entry of their own.
 
+## Unreleased
+
+### Fixed
+
+- `exports` now names `./package.json`, so `require('@markup-carve/astro-carve/package.json')`
+  reads the installed version back instead of throwing `ERR_PACKAGE_PATH_NOT_EXPORTED`
+  (markup-carve/carve#1484).
+
 ## 0.1.0 - 2026-08-18
 
 First release.
