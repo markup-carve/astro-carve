@@ -5,6 +5,10 @@
   "description": "Astro integration for the Carve markup language - use .crv files as pages and imports, rendered to HTML via carve-js",
   "license": "MIT",
   "author": "Mark Scherer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/markup-carve/astro-carve"
+  },
   "keywords": [
     "astro",
     "astro-integration",
