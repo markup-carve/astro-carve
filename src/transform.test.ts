@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'vitest'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { carveVitePlugin } from './vite-plugin.js'
 import {
   emitModule,
@@ -45,6 +48,19 @@ describe('renderCarve', () => {
   test('renders underline inline (Carve maps _x_ to <u>)', () => {
     const { html } = renderCarve('A paragraph with _underline_ text.')
     expect(html).toContain('<u>underline</u>')
+  })
+
+  test('expands a contained include for a file-backed render', () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-carve-includes-'))
+    try {
+      const page = join(root, 'pages', 'index.crv')
+      mkdirSync(join(root, 'pages'))
+      writeFileSync(join(root, 'shared.crv'), 'Included text.')
+      const { html } = renderCarve('{{ ../shared.crv }}', { includeRoot: root }, page)
+      expect(html).toContain('Included text.')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test('renders an unordered list with all items', () => {

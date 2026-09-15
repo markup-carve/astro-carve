@@ -1,9 +1,14 @@
 import {
   carveToHtml,
+  expandIncludes,
   parse,
+  renderDocument,
+  resolve,
   type ParseOptions,
   type RenderOptions,
 } from '@markup-carve/carve'
+import { fileSystemResolver } from '@markup-carve/carve/node'
+import { dirname, resolve as resolvePath } from 'node:path'
 
 /**
  * Carve frontmatter as Carve exposes it: the verbatim text between the
@@ -30,6 +35,10 @@ export interface CarveTransformOptions {
    * so a consumer can run a full YAML parser if it needs one.
    */
   parseFrontmatter?: boolean
+  /** Resolve includes for file-backed modules. Default `true`. */
+  includes?: boolean
+  /** Include containment root. Defaults to Astro's Vite project root. */
+  includeRoot?: string
 }
 
 export interface CarveTransformResult {
@@ -37,6 +46,8 @@ export interface CarveTransformResult {
   source: string
   frontmatter: CarveFrontmatter | null
   frontmatterData: Record<string, unknown>
+  dependencies: string[]
+  warnings: string[]
 }
 
 export const DEFAULT_INCLUDE = /\.crv$/
@@ -85,17 +96,35 @@ export function parseSimpleFrontmatter(content: string): Record<string, unknown>
 export function renderCarve(
   source: string,
   options: CarveTransformOptions = {},
+  sourcePath?: string,
+  defaultIncludeRoot?: string,
 ): CarveTransformResult {
   const renderOpts = options.render ?? {}
-  const html = carveToHtml(source, renderOpts)
   const doc = parse(source, renderOpts)
+  const expanded = sourcePath && (options.includes ?? true)
+    ? expandIncludes(doc, source, {
+        resolve: fileSystemResolver(resolvePath(options.includeRoot ?? defaultIncludeRoot ?? dirname(sourcePath))),
+        sourcePath: resolvePath(sourcePath),
+        extensions: renderOpts.extensions,
+      })
+    : null
+  const html = expanded
+    ? renderDocument(resolve(expanded.doc), renderOpts)
+    : carveToHtml(source, renderOpts)
   const frontmatter: CarveFrontmatter | null = doc.frontmatter
     ? { format: doc.frontmatter.format, content: doc.frontmatter.content }
     : null
   const parseFm = options.parseFrontmatter ?? true
   const frontmatterData =
     parseFm && frontmatter ? parseSimpleFrontmatter(frontmatter.content) : {}
-  return { html, source, frontmatter, frontmatterData }
+  return {
+    html,
+    source,
+    frontmatter,
+    frontmatterData,
+    dependencies: expanded?.dependencies.filter((dependency) => dependency.resolved).map((dependency) => dependency.id) ?? [],
+    warnings: expanded?.warnings.map((warning) => warning.message) ?? [],
+  }
 }
 
 /**

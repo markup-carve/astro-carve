@@ -13,15 +13,21 @@ import {
  */
 export function carveVitePlugin(options: CarveTransformOptions = {}): Plugin {
   const include = options.include ?? DEFAULT_INCLUDE
+  let projectRoot = process.cwd()
 
   return {
     name: 'astro-carve:vite',
     enforce: 'pre',
+    configResolved(config) {
+      projectRoot = config.root
+    },
     transform(source, id) {
       const [filename] = id.split('?', 1)
       if (!filename || !include.test(filename)) return null
 
-      const result = renderCarve(source, options)
+      const result = renderCarve(source, options, filename, projectRoot)
+      for (const dependency of result.dependencies) this.addWatchFile(dependency)
+      for (const warning of result.warnings) this.warn(warning)
       return {
         code: emitModule(result),
         map: { mappings: '' },
