@@ -103,7 +103,10 @@ export function renderCarve(
   const doc = parse(source, renderOpts)
   const expanded = sourcePath && (options.includes ?? true)
     ? expandIncludes(doc, source, {
-        resolve: fileSystemResolver(resolvePath(options.includeRoot ?? defaultIncludeRoot ?? dirname(sourcePath))),
+        // A configured root reaches the resolver unchanged, so its absolute-path
+        // refusal (PART 9 section 19, I10) still fires. Resolving it here would
+        // root containment at the process working directory instead.
+        resolve: fileSystemResolver(options.includeRoot ?? defaultIncludeRoot ?? resolvePath(dirname(sourcePath))),
         sourcePath: resolvePath(sourcePath),
         extensions: renderOpts.extensions,
       })

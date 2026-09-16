@@ -95,7 +95,7 @@ carve({
   // Resolve includes and contain them to Astro's project root. Default true.
   includes: true,
 
-  // Override the include containment root.
+  // Override the include containment root. Must be an absolute path.
   includeRoot: '/absolute/path/to/content',
 
   // Register .crv as Astro page extensions. Default false. See below.

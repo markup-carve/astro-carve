@@ -63,6 +63,19 @@ describe('renderCarve', () => {
     }
   })
 
+  test('refuses a relative include root instead of rooting it at the cwd', () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-carve-relroot-'))
+    try {
+      const page = join(root, 'pages', 'index.crv')
+      mkdirSync(join(root, 'pages'))
+      expect(() => renderCarve('{{ shared.crv }}', { includeRoot: '..' }, page)).toThrow(
+        /absolute path/,
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   test('renders an unordered list with all items', () => {
     const { html } = renderCarve('- one\n- two\n- three\n')
     expect(html).toContain('<ul>')
