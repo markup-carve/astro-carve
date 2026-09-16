@@ -92,6 +92,12 @@ carve({
   // Parse simple key: value frontmatter into frontmatterData. Default true.
   parseFrontmatter: true,
 
+  // Resolve includes and contain them to Astro's project root. Default true.
+  includes: true,
+
+  // Override the include containment root. Must be an absolute path.
+  includeRoot: '/absolute/path/to/content',
+
   // Register .crv as Astro page extensions. Default false. See below.
   pageExtensions: false,
 })
@@ -99,6 +105,10 @@ carve({
 
 All carve-js render/parse options (including `extensions` for Tier-2 syntax)
 pass through `render`.
+
+Include paths resolve relative to the `.crv` file. Included files are watched,
+so editing one invalidates the importing module. Set `includes: false` to leave
+all include directives literal.
 
 ## Integration surfaces
 
