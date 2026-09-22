@@ -52,6 +52,34 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
+      # GATE: `npm publish` takes its version from package.json, never from the
+      # tag, so a tag that disagrees with the manifest publishes the manifest's
+      # version under the wrong name and nothing here fails.
+      #
+      # THREE surfaces, not one. package-lock.json carries the version twice -
+      # at the top level and again under packages[""] - and `npm ci` reconciles
+      # neither against package.json, so a hand-edited bump can leave either
+      # behind. tree-sitter-carve shipped exactly that gap: manifests sat at
+      # 0.1.0 through two releases because only one surface was ever compared.
+      #
+      # The tag pattern above does not accept a leading `v`, so stripping one is
+      # belt and braces for a hand-pushed tag or a later pattern change.
+      - name: The tag matches every version surface
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          fail=0
+          check() {
+            if [ "$2" != "$tag" ]; then
+              echo "::error::$1 declares '$2', tag is '$tag'"
+              fail=1
+            fi
+          }
+          check 'package.json'             "$(node -p 'require("./package.json").version')"
+          check 'package-lock.json (top)'  "$(node -p 'require("./package-lock.json").version')"
+          check 'package-lock.json (root)' "$(node -p 'require("./package-lock.json").packages[""].version')"
+          [ "$fail" = 0 ] || exit 1
+          echo "tag $tag matches package.json and both package-lock.json version surfaces"
+
 
       - run: npm ci
       - run: npm run build
