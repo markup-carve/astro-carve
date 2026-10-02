@@ -5,9 +5,12 @@ on:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
 
+# Each job declares timeout-minutes so a hung step fails fast
+# instead of inheriting the 360-minute GitHub default.
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: release
     permissions:
       # `write`, not `read`, and the gate below is the whole reason: a DRAFT
