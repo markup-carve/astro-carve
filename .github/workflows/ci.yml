@@ -10,6 +10,7 @@ on:
 # instead of inheriting the 360-minute GitHub default.
 jobs:
   build-test:
+    name: ${{ matrix.check-name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -18,12 +19,16 @@ jobs:
         include:
           - node-version: '20'
             astro-version: '5.9.0'
+            check-name: 'build-test (20, Astro 5.9.0)'
           - node-version: '20'
             astro-version: '5'
+            check-name: 'build-test (20)'
           - node-version: '22'
             astro-version: '6'
+            check-name: 'build-test (22, Astro 6)'
           - node-version: '22'
             astro-version: '7'
+            check-name: 'build-test (22)'
     steps:
       - uses: actions/checkout@v4
 
