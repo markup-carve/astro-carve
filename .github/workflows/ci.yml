@@ -15,7 +15,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['20', '22']
+        include:
+          - node-version: '20'
+            astro-version: '5.9.0'
+          - node-version: '20'
+            astro-version: '5'
+          - node-version: '22'
+            astro-version: '6'
+          - node-version: '22'
+            astro-version: '7'
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +35,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install the matrix Astro version
+        run: npm install --no-save astro@${{ matrix.astro-version }}
 
       - name: Build
         run: npm run build

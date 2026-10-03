@@ -72,12 +72,12 @@ Each `.crv` module exports:
 | `html`            | `string`                                   | The carve-js-rendered HTML.                              |
 | `source`          | `string`                                   | The raw Carve source.                                    |
 | `frontmatter`     | `{ format, content } \| null`              | Raw frontmatter as Carve exposes it (verbatim, unparsed).|
-| `frontmatterData` | `Record<string, unknown>`                  | Simple `key: value` frontmatter parsed to scalars.       |
+| `frontmatterData` | `Record<string, unknown>`                  | YAML metadata, including nested values and dates.       |
 
-Carve does not interpret frontmatter itself. `frontmatterData` is a small,
-dependency-free reader for flat scalar metadata (`title`, `draft`, numbers,
-quoted strings). For structured YAML, run your own parser over
-`frontmatter.content`.
+Carve does not interpret frontmatter itself. This integration parses YAML
+metadata for imports, page layouts, and collections. Non-YAML imports retain
+the raw frontmatter and the existing simple scalar reader. Collections require
+YAML. `parseFrontmatter: false` leaves metadata unparsed.
 
 ## Options
 
@@ -89,7 +89,7 @@ carve({
   // Forwarded to carve-js carveToHtml (extensions, heading-id options, ...).
   render: {},
 
-  // Parse simple key: value frontmatter into frontmatterData. Default true.
+  // Parse YAML frontmatter into frontmatterData. Default true.
   parseFrontmatter: true,
 
   // Resolve includes and contain them to Astro's project root. Default true.
@@ -116,15 +116,46 @@ all include directives literal.
   page or component (`import html from './doc.crv'`). The example project
   builds this with a real `astro build` and the rendered Carve HTML appears in
   the static output.
-- Off by default: page-extension routes (`pageExtensions: true`). Astro 7
-  exposes an unstable `addPageExtension` hook, and the integration will call it
-  when this option is on. However, registering the extension makes Astro render
-  a `src/pages/*.crv` file as an Astro component; this integration's transform
-  emits a plain HTML-string module, not an Astro component factory, so a
-  registered `.crv` route renders an empty shell rather than the Carve HTML. A
-  true page route would need a content-entry-type / renderer that emits an
-  Astro-component-compatible module. Until that exists, use the `.astro` import
-  surface for page routes.
+- Direct `.crv` page routes: enable `carve({ pageExtensions: true })`. Files
+  under `src/pages` compile to Astro components. Optional `layout` frontmatter
+  names a component relative to the `.crv` file; that component receives the
+  parsed metadata and a default slot containing the rendered document.
+- Content collections: use `carveLoader` on Astro 5, 6, or 7. Collection YAML
+  metadata is parsed before Astro validates it against the collection schema.
+
+## Content collections
+
+```ts
+// src/content.config.ts
+import { defineCollection, z } from 'astro:content'
+import { carveLoader } from '@markup-carve/astro-carve'
+
+export const collections = {
+  docs: defineCollection({
+    loader: carveLoader({ base: './src/content/docs' }),
+    schema: z.object({ title: z.string(), tags: z.array(z.string()).optional() }),
+  }),
+}
+```
+
+Use Astro's `getCollection` and `render(entry)` to query and render these entries.
+IDs default to the relative filename without `.crv`, or the YAML `slug` when
+provided. `generateId` can override that policy. Duplicate IDs fail loading.
+`pattern` defaults to `**/*.crv` and must stay within `base`.
+
+YAML timestamps are dates, matching Astro's YAML frontmatter behavior. Non-YAML
+collection frontmatter is rejected; imports still expose the raw format and text.
+
+Local image paths are processed by Astro's asset pipeline. Keep public assets
+as root-relative URLs. Missing local images fail the build. Includes use the project root as their containment root
+and are watched for changes. The loader updates entries after source edits,
+include edits, ID changes, and file removal. Failed schema validation stops
+the build; development errors identify the affected source file.
+
+Page routes, imports, and collections retain native Carve table rendering,
+including merged cells and captions. Page routes remain opt-in. If an Astro
+version lacks the page-extension hook, enabling them fails with an explanation
+instead of creating an empty page. This release requires Astro 5.9 or newer.
 
 ## Vite plugin (standalone)
 
@@ -154,3 +185,5 @@ declare module '*.crv' {
   export default _default
 }
 ```
+
+Image paths in included files resolve relative to the entry that includes them. Collection image processing supports local JPEG, PNG, TIFF, WebP, GIF, SVG, and AVIF paths without URL query strings or fragments. Other image URLs retain their authored `src`; place those assets in `public/` and use root-relative URLs.

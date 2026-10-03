@@ -153,3 +153,13 @@ describe('carveVitePlugin', () => {
     expect(result.code).toContain('Q</h1>')
   })
 })
+
+
+test('YAML metadata retains nested values and dates in generated modules', async () => {
+  const result = renderCarve('---\ntags: [one, two]\npubDate: 2026-10-03\n---\n\n# Metadata')
+  expect(result.frontmatterData.tags).toEqual(['one','two'])
+  expect(result.frontmatterData.pubDate).toBeInstanceOf(Date)
+  const module = await import('data:text/javascript;base64,' + Buffer.from(emitModule(result)).toString('base64'))
+  expect(module.frontmatterData.pubDate).toBeInstanceOf(Date)
+  expect(result.headings).toEqual([{ depth:1, slug:'Metadata', text:'Metadata' }])
+})
