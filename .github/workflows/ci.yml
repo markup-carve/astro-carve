@@ -10,12 +10,25 @@ on:
 # instead of inheriting the 360-minute GitHub default.
 jobs:
   build-test:
+    name: ${{ matrix.check-name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['20', '22']
+        include:
+          - node-version: '20'
+            astro-version: '5.9.0'
+            check-name: 'build-test (20, Astro 5.9.0)'
+          - node-version: '20'
+            astro-version: '5'
+            check-name: 'build-test (20)'
+          - node-version: '22'
+            astro-version: '6'
+            check-name: 'build-test (22, Astro 6)'
+          - node-version: '22'
+            astro-version: '7'
+            check-name: 'build-test (22)'
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +40,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install the matrix Astro version
+        run: npm install --no-save astro@${{ matrix.astro-version }}
 
       - name: Build
         run: npm run build

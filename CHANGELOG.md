@@ -6,6 +6,14 @@ Rendering is done by the Carve engine (`@markup-carve/carve`), so an engine
 change can alter output with no plugin diff. Engine bumps therefore get an
 entry of their own.
 
+## Unreleased
+
+- Render opt-in `.crv` page routes as Astro components, with layout support.
+- Add a schema-validated Carve content loader with YAML metadata, local image
+  assets, include rebuilds, ID changes, and file deletion handling.
+- Bundle local images in `.crv` imports. Test real builds on Astro 5, 6, and 7.
+- Require Astro 5 or newer for the content-loader API.
+
 ## 0.1.1 - 2026-09-21
 
 ### Added

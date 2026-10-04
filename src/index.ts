@@ -1,42 +1,15 @@
+import { fileURLToPath } from 'node:url'
 import type { AstroIntegration } from 'astro'
 import { carveVitePlugin } from './vite-plugin.js'
 import type { CarveTransformOptions } from './transform.js'
 
 export type CarveIntegrationOptions = CarveTransformOptions & {
-  /**
-   * Register `.crv` as Astro page extensions via the (unstable,
-   * undocumented) `addPageExtension` hook. Default `false`.
-   *
-   * Why off by default: registering the extension makes Astro treat a
-   * `src/pages/*.crv` file as a route, but Astro renders the route module
-   * as an Astro component. This integration's Vite transform emits a plain
-   * HTML-string module, not an Astro component factory, so a registered
-   * `.crv` route renders an empty `server:root` shell - the Carve HTML does
-   * not appear. The reliable, content-producing surface is importing a
-   * `.crv` file into an `.astro` page (`import html from './doc.crv'`).
-   *
-   * Set this to `true` only if you also supply a transform/renderer that
-   * emits an Astro-component-compatible module for `.crv` files.
-   */
+  /** Render `src/pages/*.crv` as Astro components. Default `false`. */
   pageExtensions?: boolean
 }
 
 const PAGE_EXTENSIONS = ['.crv']
 
-/**
- * Astro integration for the Carve markup language.
- *
- * Wires a Vite plugin that compiles `.crv` files to modules
- * exporting the carve-js-rendered `html` (default export), the raw
- * `source`, the raw `frontmatter`, and parsed `frontmatterData`. This makes
- * `import html from './doc.crv'` work inside `.astro` components - the
- * surface verified by the example build.
- *
- * Page-extension registration (`addPageExtension`) is opt in and off by
- * default - see `pageExtensions`. With only an HTML-string transform, a
- * registered `.crv` route renders an empty shell, so the supported,
- * content-producing surface is the `.astro` import shown above.
- */
 export default function carve(
   options: CarveIntegrationOptions = {},
 ): AstroIntegration {
@@ -50,7 +23,9 @@ export default function carve(
 
         updateConfig({
           vite: {
-            plugins: [carveVitePlugin(options)],
+            // Astro majors use different Vite type versions. This plugin uses
+            // their shared configResolved and transform hooks.
+            plugins: [carveVitePlugin(options, wantPageExtensions ? fileURLToPath(new URL('pages/', params.config.srcDir)) : undefined)] as unknown as NonNullable<Parameters<typeof updateConfig>[0]['vite']>['plugins'],
           },
         })
 
@@ -68,10 +43,9 @@ export default function carve(
             `registered Carve page extensions: ${PAGE_EXTENSIONS.join(', ')}`,
           )
         } else if (wantPageExtensions) {
-          logger.info(
+          throw new Error(
             'addPageExtension is unavailable in this Astro version; ' +
-              'Carve files are importable into .astro pages via the Vite ' +
-              'plugin (import html from "./doc.crv").',
+              'Use .crv imports in .astro pages instead.',
           )
         }
       },
@@ -83,6 +57,7 @@ export { carve, carveVitePlugin }
 export {
   renderCarve,
   emitModule,
+  emitPageModule,
   parseSimpleFrontmatter,
   DEFAULT_INCLUDE,
 } from './transform.js'
@@ -91,3 +66,5 @@ export type {
   CarveTransformResult,
   CarveFrontmatter,
 } from './transform.js'
+
+export { carveLoader, type CarveLoaderOptions } from './loader.js'
