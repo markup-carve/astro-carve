@@ -8,23 +8,25 @@ entry of their own.
 
 ## 0.1.2 - 2026-10-08
 
-- Render opt-in `.crv` page routes as Astro components, with layout support.
+- Render opt-in `.crv` page routes as Astro components, with layout support
+  (#23).
 - Add a schema-validated Carve content loader with YAML metadata, local image
-  assets, include rebuilds, ID changes, and file deletion handling.
-- Bundle local images in `.crv` imports. Test real builds on Astro 5, 6, and 7.
-- Require Astro 5 or newer for the content-loader API.
+  assets, include rebuilds, ID changes, and file deletion handling (#23).
+- Bundle local images in `.crv` imports. Test real builds on Astro 5, 6, and 7
+  (#23).
+- Require Astro 5 or newer for the content-loader API (#23).
 - A render loss the engine records joins `warnings`, carrying its code and source
   position, so the content loader logs it and the Vite plugin reports it. Both
   already surface that array; rendering went through `renderDocument` and
   `carveToHtml`, which return a string and drop the report, so a blanked
   `javascript:` destination, a flattened ruby annotation or a raw block for
-  another format left no trace.
+  another format left no trace (#24).
 - Tested against `@markup-carve/carve` 0.1.10. The declared range `^0.1.7`
   already resolved it, but the committed lockfile held 0.1.7, so CI had never
   run the engine a consumer installs. Three engine behaviors this transform
   reaches now have tests: a case-only cross-reference stays literal, an include
   renames every colliding id rather than only a heading id, and a denied
-  destination scheme is reported.
+  destination scheme is reported (#24).
 
 ## 0.1.1 - 2026-09-21
 
