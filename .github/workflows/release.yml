@@ -117,7 +117,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [npm-credential]
-    needs: [npm-credential]
     environment: release
     permissions:
       # `write`, not `read`, and the gate below is the whole reason: a DRAFT
