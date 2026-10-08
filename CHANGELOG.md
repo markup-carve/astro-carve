@@ -13,6 +13,18 @@ entry of their own.
   assets, include rebuilds, ID changes, and file deletion handling.
 - Bundle local images in `.crv` imports. Test real builds on Astro 5, 6, and 7.
 - Require Astro 5 or newer for the content-loader API.
+- A render loss the engine records joins `warnings`, carrying its code and source
+  position, so the content loader logs it and the Vite plugin reports it. Both
+  already surface that array; rendering went through `renderDocument` and
+  `carveToHtml`, which return a string and drop the report, so a blanked
+  `javascript:` destination, a flattened ruby annotation or a raw block for
+  another format left no trace.
+- Tested against `@markup-carve/carve` 0.1.10. The declared range `^0.1.7`
+  already resolved it, but the committed lockfile held 0.1.7, so CI had never
+  run the engine a consumer installs. Three engine behaviors this transform
+  reaches now have tests: a case-only cross-reference stays literal, an include
+  renames every colliding id rather than only a heading id, and a denied
+  destination scheme is reported.
 
 ## 0.1.1 - 2026-09-21
 

@@ -1,8 +1,8 @@
 import {
-  carveToHtml,
+  carveToHtmlWithReport,
   expandIncludes,
   parse,
-  renderDocument,
+  renderDocumentWithReport,
   renderPlainText,
   resolve,
   type ParseOptions,
@@ -152,9 +152,21 @@ export function renderCarve(
     for (const key of ['children','items','target','fallback']) visit(node[key])
   }
   visit(resolved.children)
-  const html = expanded
-    ? renderDocument(resolved, renderOpts)
-    : carveToHtml(source, renderOpts)
+  // A render loss is the engine saying it dropped something the author wrote: a
+  // blanked `javascript:` destination, a flattened ruby annotation, a raw block
+  // for another format. It joins `warnings`, which the loader and the Vite
+  // plugin already surface, so neither needs a change.
+  const rendered = expanded
+    ? renderDocumentWithReport(resolved, renderOpts)
+    : carveToHtmlWithReport(source, renderOpts)
+  const html = rendered.value
+  const lossWarnings = rendered.losses.map((loss) => {
+    const at = loss.pos ? ` (line ${loss.pos.startLine}, column ${loss.pos.startColumn})` : ''
+    return `${loss.message} [${loss.code}]${at}`
+  })
+  if (rendered.truncated) {
+    lossWarnings.push(`${rendered.totalLosses} render losses in total; the rest were not reported`)
+  }
   const frontmatter: CarveFrontmatter | null = doc.frontmatter
     ? { format: doc.frontmatter.format, content: doc.frontmatter.content }
     : null
@@ -168,7 +180,7 @@ export function renderCarve(
     frontmatterData,
     headings,
     dependencies: expanded?.dependencies.filter((dependency) => dependency.resolved || dependency.denial === 'not-found').map((dependency) => dependency.id) ?? [],
-    warnings: expanded?.warnings.map((warning) => warning.message) ?? [],
+    warnings: [...(expanded?.warnings.map((warning) => warning.message) ?? []), ...lossWarnings],
   }
 }
 
