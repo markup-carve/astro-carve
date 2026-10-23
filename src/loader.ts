@@ -86,14 +86,15 @@ export function carveLoader(options: CarveLoaderOptions): Loader {
       for (const id of context.store.keys()) if (!ids.has(id)) context.store.delete(id)
       if (context.watcher) {
         const watcher = context.watcher
-        watcher.add(base)
+        watcher.add([base, ...(wikiIndex?.bases.map(b => b.dir) ?? [])])
         const onUpdate = async (file: string, relink = false): Promise<void> => {
           file = resolve(file)
           try {
             if (wikiIndex?.covers(file)) {
+              const before = wikiIndex.snapshot()
               wikiIndex.invalidate()
-              // A target that appears or disappears changes links in other entries.
-              if (relink) {
+              // A target that appears, disappears or changes its slug moves links in other entries.
+              if (relink || wikiIndex.snapshot() !== before) {
                 for (const owner of new Set(owners.values())) if (owner !== file) await sync(owner)
               }
             }

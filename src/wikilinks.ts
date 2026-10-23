@@ -53,9 +53,9 @@ type Lookup = { url: string } | { ambiguous: string[] } | null
 
 /** Lazily built map from page names to collection entry URLs. */
 export class WikiIndex {
-  private exact: Map<string, string> | undefined
+  private exact: Map<string, string[]> | undefined
   private byName: Map<string, string[]> | undefined
-  private readonly bases: { dir: string; url: string; patterns: string[] }[]
+  readonly bases: { dir: string; url: string; patterns: string[] }[]
 
   constructor(collections: CarveWikiCollection[], projectRoot: string) {
     this.bases = collections.map(c => {
@@ -80,26 +80,30 @@ export class WikiIndex {
   lookup(page: string): Lookup {
     if (!this.exact || !this.byName) this.build()
     const key = wikiSlug(page)
-    const hit = this.exact!.get(key)
-    if (hit !== undefined) return { url: hit }
-    const named = this.byName!.get(key.split('/').pop() ?? key) ?? []
-    if (named.length === 1) return { url: named[0]! }
-    return named.length > 1 ? { ambiguous: named } : null
+    const hits = this.exact!.get(key) ?? this.byName!.get(key.split('/').pop() ?? key) ?? []
+    if (hits.length === 1) return { url: hits[0]! }
+    return hits.length > 1 ? { ambiguous: hits } : null
+  }
+
+  /** Every target URL, so a caller can tell whether an edit moved one. */
+  snapshot(): string {
+    if (!this.exact || !this.byName) this.build()
+    return JSON.stringify([...this.exact!].sort())
   }
 
   private build(): void {
-    const exact = new Map<string, string>()
+    const exact = new Map<string, string[]>()
     const byName = new Map<string, string[]>()
     for (const { dir, url, patterns } of this.bases) {
       for (const file of globSync(patterns, { cwd: dir, absolute: true }).sort()) {
         const id = defaultEntryId(dir, resolve(file), frontmatterData(file))
         const key = wikiSlug(id)
         const href = entryUrl(url, id)
-        if (!exact.has(key)) exact.set(key, href)
-        const name = key.split('/').pop() ?? key
-        const list = byName.get(name) ?? []
-        if (!list.includes(href)) list.push(href)
-        byName.set(name, list)
+        for (const [map, k] of [[exact, key], [byName, key.split('/').pop() ?? key]] as const) {
+          const list = map.get(k) ?? []
+          if (!list.includes(href)) list.push(href)
+          map.set(k, list)
+        }
       }
     }
     this.exact = exact

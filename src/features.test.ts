@@ -119,6 +119,12 @@ describe('wiki links', () => {
     ])
   })
 
+  test('report an id present in two collections as ambiguous', () => {
+    const root = site({ 'docs/home.crv': 'D\n', 'blog/home.crv': 'B\n' })
+    const { warnings } = renderCarve('[[home]]', { wikilinks: { collections: [{ base: 'docs', url: '/docs/{id}/' }, { base: 'blog', url: '/blog/{id}/' }] } }, undefined, root)
+    expect(warnings).toEqual(['Wiki link [[home]] matches several collection entries: /docs/home/, /blog/home/'])
+  })
+
   test('try a custom resolver first', () => {
     const root = site(docs)
     const resolve = (page: string) => page === 'Tigers' ? 'https://example.org/tigers' : undefined
@@ -152,5 +158,22 @@ describe('wiki links', () => {
     writeFileSync(join(root, 'docs/lions.crv'), '# Lions\n')
     for (const handler of watcher.listeners('add')) await handler(join(root, 'docs/lions.crv'))
     expect(store.get('home').rendered.html).toContain('href="/docs/lions/"')
+    writeFileSync(join(root, 'docs/lions.crv'), '---\nslug: big-cats\n---\n\n# Lions\n')
+    for (const handler of watcher.listeners('change')) await handler(join(root, 'docs/lions.crv'))
+    expect(store.get('home').rendered.html).toContain('href="lions"')
+  })
+
+  test('watch collection directories outside the loader base', async () => {
+    const root = site({ 'docs/home.crv': 'See [[Lions]].\n', 'animals/lions.crv': '# Lions\n' })
+    const watcher = Object.assign(new EventEmitter(), { add: vi.fn() })
+    const store = new Map<string, any>()
+    const context = { config: { root: pathToFileURL(root + '/') }, store: { set: (e: any) => store.set(e.id, e), keys: () => [...store.keys()], delete: (id: string) => store.delete(id) },
+      watcher, parseData: async ({ data }: any) => data, generateDigest: JSON.stringify, logger: { warn: vi.fn(), error: vi.fn() } } as unknown as LoaderContext
+    await carveLoader({ base: './docs', wikilinks: { collections: [{ base: './animals', url: '/animals/{id}/' }] } }).load(context)
+    expect(store.get('home').rendered.html).toContain('href="/animals/lions/"')
+    expect(watcher.add).toHaveBeenCalledWith([join(root, 'docs'), join(root, 'animals')])
+    rmSync(join(root, 'animals/lions.crv'))
+    for (const handler of watcher.listeners('unlink')) await handler(join(root, 'animals/lions.crv'))
+    expect(store.get('home').rendered.html).toContain('href="lions"')
   })
 })

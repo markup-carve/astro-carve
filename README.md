@@ -156,14 +156,16 @@ else the path without `.crv`), compared as a slug, so `[[Getting Started]]`
 finds `getting-started.crv`. A name without a folder also matches a unique file
 name anywhere in the collections, so `[[Tigers]]` finds `guides/tigers.crv`.
 `{id}` in `url` is replaced by the entry id. A target that matches nothing, or
-matches several entries, is reported as a warning and links to the plain slug.
+matches entries in several places, is reported as a warning and links to the
+plain slug.
 `wikilinks: true` turns the syntax on without collections and always uses that
 slug.
 
 Pass the same `wikilinks` option to `carveLoader` for collection entries. Ids
 from a custom `generateId` are not seen by the resolver; use `resolve` for
-those. In development, adding or removing an entry relinks the loader's
-entries; a `.crv` import or page picks up a new target on its next edit.
+those. In development, adding, removing or re-slugging an entry relinks the
+loader's entries, and the loader watches every collection directory it links
+into. A `.crv` import or page picks up a new target on its next edit.
 
 ## Integration surfaces
 
