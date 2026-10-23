@@ -16,6 +16,8 @@ import { load as loadYaml } from 'js-yaml'
 import { localImages, imageImportPath } from './assets.js'
 import { dirname, resolve as resolvePath } from 'node:path'
 import { WikiIndex, wikilinksExtension, type CarveWikilinksOptions } from './wikilinks.js'
+import type { CarveExtension } from '@markup-carve/carve'
+import type { CarveHighlightOptions } from './highlight.js'
 
 /**
  * Carve frontmatter as Carve exposes it: the verbatim text between the
@@ -53,6 +55,11 @@ export interface CarveTransformOptions {
   lint?: boolean | { platforms?: LintPlatform[] }
   /** Parse `[[Page]]` wiki links, resolved against content collections. Default `false`. */
   wikilinks?: boolean | CarveWikilinksOptions
+  /**
+   * Highlight fenced code with Shiki and the Carve grammar from carve-grammars.
+   * `true` uses Astro's `markdown.shikiConfig`. Default `false`.
+   */
+  highlight?: boolean | CarveHighlightOptions
 }
 
 function lintMessage(warning: LintWarning): string {
@@ -143,14 +150,16 @@ export function renderCarve(
   sourcePath?: string,
   defaultIncludeRoot?: string,
   wikiIndex?: WikiIndex,
+  extraExtensions: CarveExtension[] = [],
 ): CarveTransformResult {
   const wikiWarnings = new Set<string>()
   const wiki = options.wikilinks === true ? {} : options.wikilinks || undefined
   const index = wiki?.collections?.length
     ? wikiIndex ?? new WikiIndex(wiki.collections, defaultIncludeRoot ?? (sourcePath ? dirname(resolvePath(sourcePath)) : process.cwd()))
     : undefined
-  const renderOpts = wiki
-    ? { ...options.render, extensions: [...(options.render?.extensions ?? []), wikilinksExtension(wiki, index, (message) => wikiWarnings.add(message))] }
+  const added = [...(wiki ? [wikilinksExtension(wiki, index, (message) => wikiWarnings.add(message))] : []), ...extraExtensions]
+  const renderOpts = added.length > 0
+    ? { ...options.render, extensions: [...(options.render?.extensions ?? []), ...added] }
     : options.render ?? {}
   const doc = parse(source, renderOpts)
   const includeOptions = sourcePath && (options.includes ?? true)

@@ -15,6 +15,9 @@ entry of their own.
 - Add a `wikilinks` option that resolves `[[Page]]` links against content
   collection entries, with a URL template, a custom resolver and warnings for
   missing or ambiguous targets (#33).
+- Add a `highlight` option that highlights fenced code with Shiki and the Carve
+  grammar from `@markup-carve/carve-grammars`, following Astro's
+  `markdown.shikiConfig` (#34).
 
 ## 0.1.2 - 2026-10-08
 
