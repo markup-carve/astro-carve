@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
 import { describe, expect, test, vi } from 'vitest'
-import { codeCollector, createCarveHighlighter } from './highlight.js'
+import { codeCollector, createCarveHighlighter, highlighterFor } from './highlight.js'
 import { renderCarve } from './transform.js'
 import { carveVitePlugin } from './vite-plugin.js'
 
@@ -54,6 +54,13 @@ describe('Shiki highlighting', () => {
     expect(html).toContain('--shiki-dark:')
     expect(html).toContain('white-space:pre-wrap')
     expect(html).toContain('data-language="mylang"')
+  })
+
+  test('shares one highlighter across renders with the same settings', () => {
+    expect(highlighterFor(undefined)).toBeUndefined()
+    expect(highlighterFor(true)).toBe(highlighterFor(true))
+    const config = { theme: 'nord' as const }
+    expect(highlighterFor(true, config)).toBe(highlighterFor(config))
   })
 
   test('is off by default in the Vite plugin and on when asked', async () => {

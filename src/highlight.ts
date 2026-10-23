@@ -105,9 +105,11 @@ export async function createCarveHighlighter(options: CarveHighlightOptions = {}
 }
 
 const cache = new WeakMap<object, Promise<CarveHighlighter>>()
+// Shared so every `highlight: true` render without Astro config hits the cache.
+const DEFAULTS: CarveHighlightOptions = {}
 
 /** One highlighter per options object, or none when highlighting is off. */
-export function highlighterFor(option: boolean | CarveHighlightOptions | undefined, fallback: CarveHighlightOptions = {}): Promise<CarveHighlighter> | undefined {
+export function highlighterFor(option: boolean | CarveHighlightOptions | undefined, fallback: CarveHighlightOptions = DEFAULTS): Promise<CarveHighlighter> | undefined {
   if (!option) return undefined
   const config = option === true ? fallback : option
   let highlighter = cache.get(config)
