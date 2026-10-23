@@ -68,3 +68,4 @@ export type {
 } from './transform.js'
 
 export { carveLoader, type CarveLoaderOptions } from './loader.js'
+export type { CarveWikiCollection, CarveWikilinksOptions } from './wikilinks.js'

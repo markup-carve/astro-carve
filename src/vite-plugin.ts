@@ -7,6 +7,7 @@ import {
   renderCarve,
   type CarveTransformOptions,
 } from './transform.js'
+import { WikiIndex } from './wikilinks.js'
 
 /**
  * Vite plugin that turns Carve modules (`*.crv`) into JavaScript
@@ -19,19 +20,26 @@ export function carveVitePlugin(options: CarveTransformOptions = {}, pageRoot?: 
   // first falls back to the document's own directory rather than to the process
   // working directory, which I10 forbids as a containment root.
   let projectRoot: string | undefined
+  let wikiIndex: WikiIndex | undefined
+  const collections = typeof options.wikilinks === 'object' ? options.wikilinks.collections ?? [] : []
 
   return {
     name: 'astro-carve:vite',
     enforce: 'pre',
     configResolved(config) {
       projectRoot = config.root
+      if (collections.length > 0) wikiIndex = new WikiIndex(collections, config.root)
+    },
+    watchChange(id) {
+      // An edit can change a frontmatter slug, so every event rebuilds the index.
+      if (wikiIndex?.covers(id)) wikiIndex.invalidate()
     },
     transform(source, id) {
       const [filename] = id.split('?', 1)
       include.lastIndex = 0
       if (!filename || !include.test(filename)) return null
 
-      const result = renderCarve(source, options, filename, projectRoot)
+      const result = renderCarve(source, options, filename, projectRoot, wikiIndex)
       for (const dependency of result.dependencies) this.addWatchFile(dependency)
       for (const warning of result.warnings) this.warn(warning)
       const pagePath = pageRoot ? relative(pageRoot, filename) : undefined

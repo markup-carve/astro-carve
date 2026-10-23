@@ -6,6 +6,15 @@ Rendering is done by the Carve engine (`@markup-carve/carve`), so an engine
 change can alter output with no plugin diff. Engine bumps therefore get an
 entry of their own.
 
+## Unreleased
+
+- Require `@markup-carve/carve` 0.1.13, which adds `@region:name` includes.
+- Add an opt-in `lint` option that reports carve-js lint findings, including
+  those in included files, as build warnings.
+- Add a `wikilinks` option that resolves `[[Page]]` links against content
+  collection entries, with a URL template, a custom resolver and warnings for
+  missing or ambiguous targets.
+
 ## 0.1.2 - 2026-10-08
 
 - Render opt-in `.crv` page routes as Astro components, with layout support

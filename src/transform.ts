@@ -1,10 +1,13 @@
 import {
   carveToHtmlWithReport,
   expandIncludes,
+  lintCarve,
   parse,
   renderDocumentWithReport,
   renderPlainText,
   resolve,
+  type LintPlatform,
+  type LintWarning,
   type ParseOptions,
   type RenderOptions,
 } from '@markup-carve/carve'
@@ -12,6 +15,7 @@ import { fileSystemResolver } from '@markup-carve/carve/node'
 import { load as loadYaml } from 'js-yaml'
 import { localImages, imageImportPath } from './assets.js'
 import { dirname, resolve as resolvePath } from 'node:path'
+import { WikiIndex, wikilinksExtension, type CarveWikilinksOptions } from './wikilinks.js'
 
 /**
  * Carve frontmatter as Carve exposes it: the verbatim text between the
@@ -42,6 +46,18 @@ export interface CarveTransformOptions {
   includes?: boolean
   /** Include containment root. Defaults to Astro's Vite project root. */
   includeRoot?: string
+  /**
+   * Run the carve-js linter and report its findings as warnings. Default
+   * `false`. `platforms` adds host-specific rules such as `github`.
+   */
+  lint?: boolean | { platforms?: LintPlatform[] }
+  /** Parse `[[Page]]` wiki links, resolved against content collections. Default `false`. */
+  wikilinks?: boolean | CarveWikilinksOptions
+}
+
+function lintMessage(warning: LintWarning): string {
+  const where = `line ${warning.line}, column ${warning.column}${warning.file ? ` of ${warning.file}` : ''}`
+  return `${warning.message} [${warning.rule}] (${where})`
 }
 
 export interface CarveTransformResult {
@@ -126,18 +142,28 @@ export function renderCarve(
   options: CarveTransformOptions = {},
   sourcePath?: string,
   defaultIncludeRoot?: string,
+  wikiIndex?: WikiIndex,
 ): CarveTransformResult {
-  const renderOpts = options.render ?? {}
+  const wikiWarnings = new Set<string>()
+  const wiki = options.wikilinks === true ? {} : options.wikilinks || undefined
+  const index = wiki?.collections?.length
+    ? wikiIndex ?? new WikiIndex(wiki.collections, defaultIncludeRoot ?? (sourcePath ? dirname(resolvePath(sourcePath)) : process.cwd()))
+    : undefined
+  const renderOpts = wiki
+    ? { ...options.render, extensions: [...(options.render?.extensions ?? []), wikilinksExtension(wiki, index, (message) => wikiWarnings.add(message))] }
+    : options.render ?? {}
   const doc = parse(source, renderOpts)
-  const expanded = sourcePath && (options.includes ?? true)
-    ? expandIncludes(doc, source, {
+  const includeOptions = sourcePath && (options.includes ?? true)
+    ? {
         // A configured root reaches the resolver unchanged, so its absolute-path
         // refusal (PART 9 section 19, I10) still fires. Resolving it here would
         // root containment at the process working directory instead.
         resolve: fileSystemResolver(options.includeRoot ?? defaultIncludeRoot ?? resolvePath(dirname(sourcePath))),
         sourcePath: resolvePath(sourcePath),
-        extensions: renderOpts.extensions,
-      })
+      }
+    : undefined
+  const expanded = includeOptions
+    ? expandIncludes(doc, source, { ...includeOptions, extensions: renderOpts.extensions })
     : null
   const resolved = resolve(expanded?.doc ?? doc, { asciiHeadingIds: renderOpts.asciiHeadingIds, lowercaseHeadingIds: renderOpts.lowercaseHeadingIds })
   const headings: CarveTransformResult['headings'] = []
@@ -167,6 +193,15 @@ export function renderCarve(
   if (rendered.truncated) {
     lossWarnings.push(`${rendered.totalLosses} render losses in total; the rest were not reported`)
   }
+  const lintWarnings = options.lint
+    ? lintCarve(source, {
+        includes: includeOptions,
+        asciiHeadingIds: renderOpts.asciiHeadingIds,
+        lowercaseHeadingIds: renderOpts.lowercaseHeadingIds,
+        extensions: renderOpts.extensions,
+        platforms: options.lint === true ? undefined : options.lint.platforms,
+      }).map(lintMessage)
+    : []
   const frontmatter: CarveFrontmatter | null = doc.frontmatter
     ? { format: doc.frontmatter.format, content: doc.frontmatter.content }
     : null
@@ -180,7 +215,7 @@ export function renderCarve(
     frontmatterData,
     headings,
     dependencies: expanded?.dependencies.filter((dependency) => dependency.resolved || dependency.denial === 'not-found').map((dependency) => dependency.id) ?? [],
-    warnings: [...(expanded?.warnings.map((warning) => warning.message) ?? []), ...lossWarnings],
+    warnings: [...(expanded?.warnings.map((warning) => warning.message) ?? []), ...lossWarnings, ...wikiWarnings, ...lintWarnings],
   }
 }
 

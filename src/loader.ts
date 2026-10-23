@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { glob } from 'tinyglobby'
 import { localImages, imageImportPath } from './assets.js'
 import { renderCarve, type CarveTransformOptions } from './transform.js'
+import { defaultEntryId, WikiIndex } from './wikilinks.js'
 
 export interface CarveLoaderOptions extends CarveTransformOptions {
   base: string | URL
@@ -26,19 +27,21 @@ export function carveLoader(options: CarveLoaderOptions): Loader {
       if (patterns.some(p => isAbsolute(p) || p.split(/[\\/]/).includes('..'))) {
         throw new Error('Carve loader patterns must stay within base')
       }
+      const collections = typeof options.wikilinks === 'object' ? options.wikilinks.collections ?? [] : []
+      const wikiIndex = collections.length > 0 ? new WikiIndex(collections, projectRoot) : undefined
       const ids = new Set<string>()
       const owners = new Map<string, string>()
       const dependencies = new Map<string, Set<string>>()
       const sync = async (file: string): Promise<void> => {
         file = resolve(file)
         const source = await readFile(file, 'utf8')
-        const result = renderCarve(source, options, file, projectRoot)
+        const result = renderCarve(source, options, file, projectRoot, wikiIndex)
         const data = result.frontmatterData
         if (options.parseFrontmatter !== false && result.frontmatter && result.frontmatter.format !== 'yaml') {
           throw new Error(`${file}: collection frontmatter must be YAML`)
         }
         const entry = relative(base, file).split(sep).join('/')
-        const id = options.generateId?.({ entry, data }) ?? (typeof data.slug === 'string' ? data.slug : entry.replace(/\.crv$/, ''))
+        const id = options.generateId?.({ entry, data }) ?? defaultEntryId(base, file, data)
         if (!id) throw new Error(`${file}: collection id must not be empty`)
         const owner = owners.get(id)
         if (owner && owner !== file) throw new Error(`Duplicate Carve collection id ${id}: ${owner} and ${file}`)
@@ -84,9 +87,16 @@ export function carveLoader(options: CarveLoaderOptions): Loader {
       if (context.watcher) {
         const watcher = context.watcher
         watcher.add(base)
-        const onUpdate = async (file: string): Promise<void> => {
+        const onUpdate = async (file: string, relink = false): Promise<void> => {
           file = resolve(file)
           try {
+            if (wikiIndex?.covers(file)) {
+              wikiIndex.invalidate()
+              // A target that appears or disappears changes links in other entries.
+              if (relink) {
+                for (const owner of new Set(owners.values())) if (owner !== file) await sync(owner)
+              }
+            }
             const inside = relative(base, file)
             const knownDependency = [...dependencies.values()].some(deps => deps.has(file))
             if (!knownDependency && (isAbsolute(inside) || inside === '..' || inside.startsWith(`..${sep}`))) return
@@ -96,15 +106,17 @@ export function carveLoader(options: CarveLoaderOptions): Loader {
             for (const owner of affected) await sync(owner)
           } catch (error) { context.logger.error(String(error)) }
         }
-        watcher.on('add', onUpdate)
-        watcher.on('change', onUpdate)
+        const onAdd = (file: string): Promise<void> => onUpdate(file, true)
+        const onChange = (file: string): Promise<void> => onUpdate(file)
+        watcher.on('add', onAdd)
+        watcher.on('change', onChange)
         const onUnlink = async (file: string): Promise<void> => {
           file = resolve(file)
           for (const [id, owner] of owners) if (owner === file) { context.store.delete(id); owners.delete(id); dependencies.delete(file) }
-          await onUpdate(file)
+          await onUpdate(file, true)
         }
         watcher.on('unlink', onUnlink)
-        cleanup = () => { watcher.off('add', onUpdate); watcher.off('change', onUpdate); watcher.off('unlink', onUnlink) }
+        cleanup = () => { watcher.off('add', onAdd); watcher.off('change', onChange); watcher.off('unlink', onUnlink) }
       }
     },
   }
