@@ -100,6 +100,12 @@ carve({
 
   // Register .crv as Astro page extensions. Default false. See below.
   pageExtensions: false,
+
+  // Report carve-js lint findings as build warnings. Default false.
+  lint: true, // or { platforms: ['github'] }
+
+  // Parse [[Page]] wiki links. Default false. See "Wiki links" below.
+  wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
 })
 ```
 
@@ -109,6 +115,57 @@ pass through `render`.
 Include paths resolve relative to the `.crv` file. Included files are watched,
 so editing one invalidates the importing module. Set `includes: false` to leave
 all include directives literal.
+
+Include paths may select part of a file: `{{ shared.crv @region:intro }}`
+splices only the lines between `%% #region intro` and `%% #endregion`. A
+missing or malformed region is reported as a warning.
+
+## Lint
+
+`lint: true` runs the carve-js linter on every `.crv` module and collection
+entry, including the files it includes. Each finding is a warning in the same
+channel as include and render-loss warnings: the Vite/Astro log for imports and
+pages, the content-layer log for collections. A finding reads
+`message [rule-id] (line 3, column 1)` and names the included file when the
+finding is inside one. `lint: { platforms: ['github'] }` adds the rules for text
+that GitHub re-links, such as a bare `#12`. Lint never fails the build.
+
+## Wiki links
+
+`wikilinks` enables the carve-js `[[Page]]` syntax (`[[Page|label]]`,
+`[[Page#anchor]]`, `[[folder/page]]`) and resolves each target against content
+collections:
+
+```js
+carve({
+  wikilinks: {
+    collections: [
+      { base: './src/content/docs', url: '/docs/{id}/' },
+      { base: './src/content/blog', url: '/blog/{id}/', pattern: '**/*.crv' },
+    ],
+    // Optional, tried first. Return undefined to fall through to the collections.
+    resolve: (page) => (page === 'Changelog' ? '/changelog/' : undefined),
+    cssClass: 'wikilink',
+    newWindow: false,
+  },
+})
+```
+
+A page name matches an entry id the way `carveLoader` assigns it (YAML `slug`,
+else the path without `.crv`), compared as a slug, so `[[Getting Started]]`
+finds `getting-started.crv`. A name without a folder also matches a unique file
+name anywhere in the collections, so `[[Tigers]]` finds `guides/tigers.crv`.
+`{id}` in `url` is replaced by the entry id. A target that matches nothing, or
+matches entries in several places, is reported as a warning and links to the
+plain slug.
+`wikilinks: true` turns the syntax on without collections and always uses that
+slug.
+
+Pass the same `wikilinks` option to `carveLoader` for collection entries. Ids
+from a custom `generateId` are not seen by the resolver; use `resolve` for
+those. In development, adding, removing or re-slugging an entry relinks the
+loader's entries, and the loader watches every collection directory it links
+into. A `.crv` import or page picks up a new target on its next edit.
 
 ## Integration surfaces
 
