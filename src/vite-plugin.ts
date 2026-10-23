@@ -8,6 +8,7 @@ import {
   type CarveTransformOptions,
 } from './transform.js'
 import { WikiIndex } from './wikilinks.js'
+import { codeCollector, highlighterFor } from './highlight.js'
 
 /**
  * Vite plugin that turns Carve modules (`*.crv`) into JavaScript
@@ -34,12 +35,15 @@ export function carveVitePlugin(options: CarveTransformOptions = {}, pageRoot?: 
       // An edit can change a frontmatter slug, so every event rebuilds the index.
       if (wikiIndex?.covers(id)) wikiIndex.invalidate()
     },
-    transform(source, id) {
+    async transform(source, id) {
       const [filename] = id.split('?', 1)
       include.lastIndex = 0
       if (!filename || !include.test(filename)) return null
 
-      const result = renderCarve(source, options, filename, projectRoot, wikiIndex)
+      const highlighter = await highlighterFor(options.highlight)
+      const collector = highlighter ? codeCollector(highlighter) : undefined
+      const result = renderCarve(source, options, filename, projectRoot, wikiIndex, collector ? [collector.extension] : [])
+      if (collector) result.html = await collector.apply(result.html)
       for (const dependency of result.dependencies) this.addWatchFile(dependency)
       for (const warning of result.warnings) this.warn(warning)
       const pagePath = pageRoot ? relative(pageRoot, filename) : undefined

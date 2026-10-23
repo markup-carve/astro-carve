@@ -70,11 +70,11 @@ describe('lint', () => {
     expect(warnings.some(w => w.includes('[broken-fragment-link]') && w.includes('part.crv'))).toBe(true)
   })
 
-  test('reaches the Vite warnings channel', () => {
+  test('reaches the Vite warnings channel', async () => {
     const root = site({})
     const plugin = carveVitePlugin({ lint: true })
     const warn = vi.fn()
-    hook<(this: unknown, s: string, id: string) => unknown>(plugin, 'transform').call({ warn, addWatchFile: vi.fn() }, '[x](#nowhere)\n', join(root, 'doc.crv'))
+    await hook<(this: unknown, s: string, id: string) => unknown>(plugin, 'transform').call({ warn, addWatchFile: vi.fn() }, '[x](#nowhere)\n', join(root, 'doc.crv'))
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('[broken-fragment-link]'))
   })
 })
@@ -135,16 +135,16 @@ describe('wiki links', () => {
     expect(html).toContain('href="/docs/getting-started/"')
   })
 
-  test('resolve relative collection bases against the Vite root and see new entries after a watch event', () => {
+  test('resolve relative collection bases against the Vite root and see new entries after a watch event', async () => {
     const root = site(docs)
     const plugin = carveVitePlugin({ wikilinks: { collections: [{ base: 'src/content/docs', url: '/docs/{id}/' }] } })
     hook<(c: { root: string }) => void>(plugin, 'configResolved')({ root })
-    const transform = (s: string) => hook<(this: unknown, s: string, id: string) => { code: string }>(plugin, 'transform').call({ warn: vi.fn(), addWatchFile: vi.fn() }, s, join(root, 'src/pages/x.crv')).code
-    expect(transform('[[Tigers]]')).toContain('/docs/guides/tigers/')
-    expect(transform('[[Lions]]')).toContain('href=\\"lions\\"')
+    const transform = async (s: string) => (await hook<(this: unknown, s: string, id: string) => Promise<{ code: string }>>(plugin, 'transform').call({ warn: vi.fn(), addWatchFile: vi.fn() }, s, join(root, 'src/pages/x.crv'))).code
+    expect(await transform('[[Tigers]]')).toContain('/docs/guides/tigers/')
+    expect(await transform('[[Lions]]')).toContain('href=\\"lions\\"')
     writeFileSync(join(root, 'src/content/docs/lions.crv'), '# Lions\n')
     hook<(id: string) => void>(plugin, 'watchChange')(join(root, 'src/content/docs/lions.crv'))
-    expect(transform('[[Lions]]')).toContain('/docs/lions/')
+    expect(await transform('[[Lions]]')).toContain('/docs/lions/')
   })
 
   test('relink loader entries when a target is added', async () => {

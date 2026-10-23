@@ -106,6 +106,9 @@ carve({
 
   // Parse [[Page]] wiki links. Default false. See "Wiki links" below.
   wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
+
+  // Highlight fenced code with Shiki. Default false. See "Syntax highlighting" below.
+  highlight: true,
 })
 ```
 
@@ -166,6 +169,29 @@ from a custom `generateId` are not seen by the resolver; use `resolve` for
 those. In development, adding, removing or re-slugging an entry relinks the
 loader's entries, and the loader watches every collection directory it links
 into. A `.crv` import or page picks up a new target on its next edit.
+
+## Syntax highlighting
+
+`highlight: true` highlights fenced code in `.crv` imports, pages and
+collection entries with Shiki, using the project's `markdown.shikiConfig`
+(`theme` or `themes`, `defaultColor`, `langs`, `langAlias`, `wrap`,
+`transformers`). Pass an object of the same shape to override it, for example
+`highlight: { theme: 'nord' }`. The standalone Vite plugin has no Astro config,
+so `true` there means Shiki's `github-dark`.
+
+`carve` and `crv` fences use the Carve grammar from
+`@markup-carve/carve-grammars`, with its theme colors for Carve-specific scopes
+and the marks for strikethrough, sub/superscript and highlight. Import its
+stylesheet once to render those marks:
+
+```js
+import '@markup-carve/carve-grammars/shiki/carve.css'
+```
+
+A fence's `{#id .class key=value}` attributes and quoted title land on the
+highlighted `<pre>`, which also carries `data-language`. A fence without a
+language, or in a language Shiki does not bundle, keeps the plain
+`<pre><code class="language-x">` output.
 
 ## Integration surfaces
 

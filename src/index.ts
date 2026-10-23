@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 import type { AstroIntegration } from 'astro'
 import { carveVitePlugin } from './vite-plugin.js'
 import type { CarveTransformOptions } from './transform.js'
+import type { CarveHighlightOptions } from './highlight.js'
 
 export type CarveIntegrationOptions = CarveTransformOptions & {
   /** Render `src/pages/*.crv` as Astro components. Default `false`. */
@@ -25,7 +26,7 @@ export default function carve(
           vite: {
             // Astro majors use different Vite type versions. This plugin uses
             // their shared configResolved and transform hooks.
-            plugins: [carveVitePlugin(options, wantPageExtensions ? fileURLToPath(new URL('pages/', params.config.srcDir)) : undefined)] as unknown as NonNullable<Parameters<typeof updateConfig>[0]['vite']>['plugins'],
+            plugins: [carveVitePlugin(options.highlight === true ? { ...options, highlight: params.config.markdown.shikiConfig as CarveHighlightOptions } : options, wantPageExtensions ? fileURLToPath(new URL('pages/', params.config.srcDir)) : undefined)] as unknown as NonNullable<Parameters<typeof updateConfig>[0]['vite']>['plugins'],
           },
         })
 
@@ -69,3 +70,4 @@ export type {
 
 export { carveLoader, type CarveLoaderOptions } from './loader.js'
 export type { CarveWikiCollection, CarveWikilinksOptions } from './wikilinks.js'
+export type { CarveHighlightOptions } from './highlight.js'

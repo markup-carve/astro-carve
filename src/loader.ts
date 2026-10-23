@@ -6,6 +6,7 @@ import { glob } from 'tinyglobby'
 import { localImages, imageImportPath } from './assets.js'
 import { renderCarve, type CarveTransformOptions } from './transform.js'
 import { defaultEntryId, WikiIndex } from './wikilinks.js'
+import { codeCollector, highlighterFor, type CarveHighlightOptions } from './highlight.js'
 
 export interface CarveLoaderOptions extends CarveTransformOptions {
   base: string | URL
@@ -35,7 +36,10 @@ export function carveLoader(options: CarveLoaderOptions): Loader {
       const sync = async (file: string): Promise<void> => {
         file = resolve(file)
         const source = await readFile(file, 'utf8')
-        const result = renderCarve(source, options, file, projectRoot, wikiIndex)
+        const highlighter = await highlighterFor(options.highlight, context.config.markdown?.shikiConfig as CarveHighlightOptions | undefined)
+        const collector = highlighter ? codeCollector(highlighter) : undefined
+        const result = renderCarve(source, options, file, projectRoot, wikiIndex, collector ? [collector.extension] : [])
+        if (collector) result.html = await collector.apply(result.html)
         const data = result.frontmatterData
         if (options.parseFrontmatter !== false && result.frontmatter && result.frontmatter.format !== 'yaml') {
           throw new Error(`${file}: collection frontmatter must be YAML`)
