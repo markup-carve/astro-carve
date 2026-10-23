@@ -40,6 +40,8 @@ const DEFAULT_THEME = 'github-dark'
 
 interface GrammarsShiki {
   carveGrammar: LanguageRegistration
+  carveCsvGrammar: LanguageRegistration
+  carveTsvGrammar: LanguageRegistration
   carveStylingTransformer: ShikiTransformer
   carveLightExtras: unknown[]
   carveDarkExtras: unknown[]
@@ -49,7 +51,7 @@ interface GrammarsShiki {
 /** Build the highlighter once per plugin or loader; Shiki loads grammars on demand. */
 export async function createCarveHighlighter(options: CarveHighlightOptions = {}): Promise<CarveHighlighter> {
   const shiki = await import('shiki')
-  // Untyped entry in carve-grammars 0.1.17; the cast keeps the contract in one place.
+  // Untyped entry in carve-grammars; the cast keeps the contract in one place.
   const grammars = await import('@markup-carve/carve-grammars/shiki' as string) as GrammarsShiki
   const resolveTheme = async (theme: BundledTheme | ThemeRegistration): Promise<ThemeRegistration> => {
     const base = typeof theme === 'string' ? (await shiki.bundledThemes[theme]()).default as ThemeRegistration : theme
@@ -62,7 +64,8 @@ export async function createCarveHighlighter(options: CarveHighlightOptions = {}
   const theme = themes ? undefined : await resolveTheme(options.theme ?? DEFAULT_THEME)
   const highlighter: Highlighter = await shiki.createHighlighter({
     themes: themes ? Object.values(themes) : [theme!],
-    langs: [grammars.carveGrammar, ...(options.langs ?? [])],
+    // The Carve grammar highlights CSV and TSV fence bodies with these.
+    langs: [grammars.carveGrammar, grammars.carveCsvGrammar, grammars.carveTsvGrammar, ...(options.langs ?? [])],
     langAlias: options.langAlias,
   })
   const carveNames = new Set([grammars.carveGrammar.name, ...(grammars.carveGrammar.aliases ?? [])])
