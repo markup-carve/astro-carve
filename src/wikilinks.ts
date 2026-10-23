@@ -80,7 +80,8 @@ export class WikiIndex {
   lookup(page: string): Lookup {
     if (!this.exact || !this.byName) this.build()
     const key = wikiSlug(page)
-    const hits = this.exact!.get(key) ?? this.byName!.get(key.split('/').pop() ?? key) ?? []
+    // A folder-qualified name only matches a full id.
+    const hits = this.exact!.get(key) ?? (key.includes('/') ? undefined : this.byName!.get(key)) ?? []
     if (hits.length === 1) return { url: hits[0]! }
     return hits.length > 1 ? { ambiguous: hits } : null
   }

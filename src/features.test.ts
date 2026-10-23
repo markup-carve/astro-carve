@@ -111,11 +111,13 @@ describe('wiki links', () => {
 
   test('warn on a missing or ambiguous target and keep the default slug', () => {
     const root = site(docs)
-    const { html, warnings } = renderCarve('[[Lions]] [[dup]] [[Lions]]', options(root), undefined, root)
+    const { html, warnings } = renderCarve('[[Lions]] [[dup]] [[Lions]] [[wrong/tigers]]', options(root), undefined, root)
     expect(html).toContain('href="lions"')
+    expect(html).toContain('href="wrong/tigers"')
     expect(warnings).toEqual([
       'Wiki link [[Lions]] matches no collection entry',
       'Wiki link [[dup]] matches several collection entries: /docs/a/dup/, /docs/b/dup/',
+      'Wiki link [[wrong/tigers]] matches no collection entry',
     ])
   })
 
