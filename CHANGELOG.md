@@ -8,11 +8,12 @@ entry of their own.
 
 ## 0.1.4 - 2026-10-24
 
-Fenced code highlighting uses the current Carve grammar, including its latest syntax scopes.
+Fenced code highlighting uses the current Carve grammar. Rendering and Markdown loss reports follow the published Carve engine.
 
 ### Fixes
 
-- Fenced code highlighting follows carve-grammars 0.1.19 scopes (#38).
+- Fenced code highlighting follows carve-grammars 0.1.20 scopes (#38, #40).
+- Table spans, wrapped attributes, and continuation markers follow the Carve 0.1.12 rulings; Markdown export reports container, caption, attribute, and escaped HTML losses (#40).
 
 **Full Changelog**: https://github.com/markup-carve/astro-carve/compare/0.1.3...0.1.4
 
