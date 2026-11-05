@@ -52,7 +52,7 @@ export interface CarveTransformOptions {
    * Run the carve-js linter and report its findings as warnings. Default
    * `false`. `platforms` adds host-specific rules such as `github`.
    */
-  lint?: boolean | { platforms?: LintPlatform[] }
+  lint?: boolean | CarveLintOptions
   /** Parse `[[Page]]` wiki links, resolved against content collections. Default `false`. */
   wikilinks?: boolean | CarveWikilinksOptions
   /**
@@ -60,6 +60,15 @@ export interface CarveTransformOptions {
    * `true` uses Astro's `markdown.shikiConfig`. Default `false`.
    */
   highlight?: boolean | CarveHighlightOptions
+}
+
+export interface CarveLintOptions {
+  /** Host-specific rules, such as `github`. */
+  platforms?: LintPlatform[]
+  /** Also report advisory `Hint` findings, such as a thematic break not written `***`. */
+  hints?: boolean
+  /** Opt-in rules to run in addition to the defaults. */
+  enabledRules?: readonly string[]
 }
 
 function lintMessage(warning: LintWarning): string {
@@ -195,21 +204,26 @@ export function renderCarve(
     ? renderDocumentWithReport(resolved, renderOpts)
     : carveToHtmlWithReport(source, renderOpts)
   const html = rendered.value
+  const documentPath = sourcePath ? resolvePath(sourcePath) : undefined
   const lossWarnings = rendered.losses.map((loss) => {
-    const at = loss.pos ? ` (line ${loss.pos.startLine}, column ${loss.pos.startColumn})` : ''
+    // A loss in included content carries the file its position is in.
+    const file = loss.file && loss.file !== documentPath ? ` of ${loss.file}` : ''
+    const at = loss.pos ? ` (line ${loss.pos.startLine}, column ${loss.pos.startColumn}${file})` : ''
     return `${loss.message} [${loss.code}]${at}`
   })
   if (rendered.truncated) {
     lossWarnings.push(`${rendered.totalLosses} render losses in total; the rest were not reported`)
   }
-  const lintWarnings = options.lint
+  const lint = options.lint === true ? {} : options.lint || undefined
+  const lintWarnings = lint
     ? lintCarve(source, {
         includes: includeOptions,
         asciiHeadingIds: renderOpts.asciiHeadingIds,
         lowercaseHeadingIds: renderOpts.lowercaseHeadingIds,
         extensions: renderOpts.extensions,
-        platforms: options.lint === true ? undefined : options.lint.platforms,
-      }).map(lintMessage)
+        platforms: lint.platforms,
+        enabledRules: lint.enabledRules,
+      }).filter((warning) => lint.hints || warning.severity !== 'Hint').map(lintMessage)
     : []
   const frontmatter: CarveFrontmatter | null = doc.frontmatter
     ? { format: doc.frontmatter.format, content: doc.frontmatter.content }
