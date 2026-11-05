@@ -1,6 +1,6 @@
 # astro-carve
 
-Astro integration for `.crv` pages and imports, using @markup-carve/carve 0.1.14 or later. Documents render during the site build. Read the [Carve documentation](https://markup-carve.github.io/carve/) for the language syntax.
+Astro integration for `.crv` pages and imports, using @markup-carve/carve 0.1.16 or later. Documents render during the site build. Read the [Carve documentation](https://markup-carve.github.io/carve/) for the language syntax.
 
 ## Install
 
