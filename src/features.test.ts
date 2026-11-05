@@ -45,6 +45,28 @@ describe('@region includes', () => {
   })
 })
 
+describe('render losses', () => {
+  test('name the included file a loss comes from', () => {
+    const root = site({ 'child.crv': 'A [bad](javascript:x) link.\n' })
+    const { warnings } = renderCarve('[top](javascript:y)\n\n{{ child.crv }}\n', {}, join(root, 'page.crv'), root)
+    expect(warnings).toEqual([
+      'Blanked a denied destination scheme [destination-denied] (line 1, column 1)',
+      `Blanked a denied destination scheme [destination-denied] (line 1, column 3 of ${join(root, 'child.crv')})`,
+    ])
+  })
+})
+
+describe('CSV table includes', () => {
+  test('select records with @rows and columns with @cols', () => {
+    const root = site({ 'data.csv': 'a,b\n1,2\n3,4\n5,6\n' })
+    const { html, warnings } = renderCarve('{table}\n{{ data.csv @code:csv @rows:3-4 @cols:"b" }}\n', {}, join(root, 'page.crv'), root)
+    expect(html).toContain('<th scope="col">b</th>')
+    expect(html).toContain('<tr><td>4</td></tr>\n    <tr><td>6</td></tr>')
+    expect(html).not.toMatch(/<td>2<\/td>|>a</)
+    expect(warnings).toEqual([])
+  })
+})
+
 describe('lint', () => {
   const source = '# A\n\n# A\n\nGo to [x](#nowhere). Fixes #12.\n'
 
@@ -68,6 +90,22 @@ describe('lint', () => {
     const root = site({ 'part.crv': 'See [x](#gone).\n' })
     const { warnings } = renderCarve('{{ part.crv }}\n', { lint: true }, join(root, 'page.crv'), root)
     expect(warnings.some(w => w.includes('[broken-fragment-link]') && w.includes('part.crv'))).toBe(true)
+  })
+
+  test('leaves hints out unless asked for', () => {
+    const source = 'Text.\n\n---\n\nMore.\n'
+    expect(renderCarve(source, { lint: true }).warnings).toEqual([])
+    expect(renderCarve(source, { lint: { hints: true } }).warnings).toEqual([
+      'This thematic break is written "---"; the canonical spelling is "***". [thematic-break-spelling] (line 3, column 1)',
+    ])
+  })
+
+  test('runs opt-in rules named in enabledRules', () => {
+    const source = 'See [here](https://example.com).\n'
+    expect(renderCarve(source, { lint: true }).warnings).toEqual([])
+    const { warnings } = renderCarve(source, { lint: { enabledRules: ['non-descriptive-link-text'] } })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/\[non-descriptive-link-text\] \(line 1, column 5\)$/)
   })
 
   test('reaches the Vite warnings channel', async () => {

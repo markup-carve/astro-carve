@@ -72,6 +72,9 @@ Each `.crv` module exports:
 | `frontmatter`     | `{ format, content } \| null`              | Raw frontmatter as Carve exposes it (verbatim, unparsed).|
 | `frontmatterData` | `Record<string, unknown>`                  | YAML metadata, including nested values and dates.       |
 
+A file whose first line is `---` with no closing `---` line is frontmatter to
+its end, so the page renders empty. Write a thematic break as `***`.
+
 Carve does not interpret frontmatter itself. This integration parses YAML
 metadata for imports, page layouts, and collections. Non-YAML imports retain
 the raw frontmatter and the existing simple scalar reader. Collections require
@@ -100,7 +103,7 @@ carve({
   pageExtensions: false,
 
   // Report carve-js lint findings as build warnings. Default false.
-  lint: true, // or { platforms: ['github'] }
+  lint: true, // or { platforms: ['github'], hints: true, enabledRules: [...] }
 
   // Parse [[Page]] wiki links. Default false. See "Wiki links" below.
   wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
@@ -121,6 +124,17 @@ Include paths may select part of a file: `{{ shared.crv @region:intro }}`
 splices only the lines between `%% #region intro` and `%% #endregion`. A
 missing or malformed region is reported as a warning.
 
+A CSV or TSV file included as a table can select records with `@rows` and
+columns with `@cols`. The header row is kept:
+
+```
+{table}
+{{ data.csv @code:csv @rows:3-4 @cols:"Seats,Plan" }}
+```
+
+A render loss inside an included file, such as a blanked `javascript:` link,
+names that file in its warning.
+
 ## Lint
 
 `lint: true` runs the carve-js linter on every `.crv` module and collection
@@ -130,6 +144,17 @@ pages, the content-layer log for collections. A finding reads
 `message [rule-id] (line 3, column 1)` and names the included file when the
 finding is inside one. `lint: { platforms: ['github'] }` adds the rules for text
 that GitHub re-links, such as a bare `#12`. Lint never fails the build.
+
+Advisory `Hint` findings, such as a thematic break not written `***`, are left
+out. `lint: { hints: true }` reports them, and `enabledRules` runs opt-in rules
+on top of the defaults:
+
+```js
+carve({ lint: { hints: true, enabledRules: ['non-descriptive-link-text'] } })
+```
+
+A `%% carve-lint-disable-next-line <rule>` comment in the document silences the
+finding on the next line.
 
 ## Wiki links
 
