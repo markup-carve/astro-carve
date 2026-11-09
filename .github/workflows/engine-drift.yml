@@ -61,6 +61,7 @@ jobs:
             github:*|git+*|git:*)
               echo "::warning::${pkg} is pinned to ${range}; re-point it to a published release before the next publish"
               echo "pinned=true" >> "${GITHUB_OUTPUT}"
+              echo "pin=${range##*#}" >> "${GITHUB_OUTPUT}"
               exit 0
               ;;
           esac
@@ -137,12 +138,26 @@ jobs:
           fi
 
       - name: Check out the engine
-        if: steps.registry.outputs.pinned != 'true'
         uses: actions/checkout@v7
         with:
           repository: markup-carve/carve-js
           path: carve-js
           fetch-depth: 0
+
+      - name: Compare the pinned engine commit against carve-js main
+        if: steps.registry.outputs.pinned == 'true'
+        run: |
+          set -euo pipefail
+          pin='${{ steps.registry.outputs.pin }}'
+          if ! git -C carve-js merge-base --is-ancestor "${pin}" origin/main 2>/dev/null; then
+            echo "::error::the pinned carve-js commit ${pin} is not on carve-js main"
+            exit 1
+          fi
+          behind="$(git -C carve-js rev-list --count "${pin}..origin/main")"
+          echo "pinned carve-js ${pin} is ${behind} commit(s) behind main"
+          if [ "${behind}" -gt 0 ]; then
+            echo "::warning::the pinned engine ${pin} is ${behind} commit(s) behind carve-js main"
+          fi
 
       - name: Compare the published engine against carve-js main
         if: steps.registry.outputs.pinned != 'true'
