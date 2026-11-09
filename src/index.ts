@@ -63,6 +63,7 @@ export {
   DEFAULT_INCLUDE,
 } from './transform.js'
 export type {
+  CarveLintOptions,
   CarveTransformOptions,
   CarveTransformResult,
   CarveFrontmatter,

@@ -54,6 +54,17 @@ jobs:
             echo "::error::${pkg} is not a dependency of this repo - this workflow is watching nothing"
             exit 1
           fi
+          # Between engine releases main may pin a merged carve-js commit. The
+          # registry has nothing to compare that against; release.yml refuses
+          # to publish it, so this only reports it.
+          case "${range}" in
+            github:*|git+*|git:*)
+              echo "::warning::${pkg} is pinned to ${range}; re-point it to a published release before the next publish"
+              echo "pinned=true" >> "${GITHUB_OUTPUT}"
+              echo "pin=${range##*#}" >> "${GITHUB_OUTPUT}"
+              exit 0
+              ;;
+          esac
           # `npm view <pkg>@<range> version` prints ONE bare version when the
           # range matches a single release, and `<pkg>@<v> '<v>'` lines when it
           # matches several. Taking the last WHITESPACE-SEPARATED FIELD reads
@@ -87,6 +98,7 @@ jobs:
           echo "resolved=${resolved}" >> "${GITHUB_OUTPUT}"
 
       - name: Compare the LOCKFILE against what the range resolves to
+        if: steps.registry.outputs.pinned != 'true'
         run: |
           set -euo pipefail
           pkg='@markup-carve/carve'
@@ -132,7 +144,23 @@ jobs:
           path: carve-js
           fetch-depth: 0
 
+      - name: Compare the pinned engine commit against carve-js main
+        if: steps.registry.outputs.pinned == 'true'
+        run: |
+          set -euo pipefail
+          pin='${{ steps.registry.outputs.pin }}'
+          if ! git -C carve-js merge-base --is-ancestor "${pin}" origin/main 2>/dev/null; then
+            echo "::error::the pinned carve-js commit ${pin} is not on carve-js main"
+            exit 1
+          fi
+          behind="$(git -C carve-js rev-list --count "${pin}..origin/main")"
+          echo "pinned carve-js ${pin} is ${behind} commit(s) behind main"
+          if [ "${behind}" -gt 0 ]; then
+            echo "::warning::the pinned engine ${pin} is ${behind} commit(s) behind carve-js main"
+          fi
+
       - name: Compare the published engine against carve-js main
+        if: steps.registry.outputs.pinned != 'true'
         run: |
           set -euo pipefail
           latest='${{ steps.registry.outputs.latest }}'
