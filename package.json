@@ -1,6 +1,6 @@
 {
   "name": "@markup-carve/astro-carve",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Astro integration for the Carve markup language - use .crv files as pages and imports, rendered to HTML via carve-js",
   "license": "MIT",
@@ -39,7 +39,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@markup-carve/carve": "github:markup-carve/carve-js#5c59d38559fd21d6a22c17a160db3319ae5d297c",
+    "@markup-carve/carve": "^0.1.16",
     "@markup-carve/carve-grammars": "^0.1.20",
     "js-yaml": "^4.3.2",
     "parse5": "^8.0.1",

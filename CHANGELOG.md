@@ -6,6 +6,23 @@ Rendering is done by the Carve engine (`@markup-carve/carve`), so an engine
 change can alter output with no plugin diff. Engine bumps therefore get an
 entry of their own.
 
+## 0.1.5 - 2026-11-12
+
+Requires the Carve engine 0.1.16. Lint gains hint and opt-in rule controls, and render losses name the file they come from.
+
+### Breaking
+
+- Require `@markup-carve/carve` 0.1.16 (#44).
+- Lint rule `a11y/heading-jump` is no longer an alias; use `heading-level-skip`. The engine now reports the old `|=>` cell alignment as `deprecated-cell-alignment` (write `|={>}`).
+
+### Improvements
+
+- Lint hints (such as `thematic-break-spelling`) are skipped unless `lint: { hints: true }` (#44).
+- `lint: { enabledRules: [...] }` turns on opt-in lint rules; the option type is exported as `CarveLintOptions` (#44).
+- Render losses from an included file name that file (#44).
+
+**Full Changelog**: https://github.com/markup-carve/astro-carve/compare/0.1.4...0.1.5
+
 ## 0.1.4 - 2026-10-24
 
 Fenced code highlighting uses the current Carve grammar. Rendering and Markdown loss reports follow the published Carve engine.
