@@ -8,11 +8,11 @@ entry of their own.
 
 ## 0.1.5 - 2026-11-12
 
-Requires the Carve engine 0.1.16. Lint gains hint and opt-in rule controls, and render losses name the file they come from.
+Requires the Carve engine 0.1.17. Lint gains hint and opt-in rule controls, and render losses name the file they come from.
 
 ### Breaking
 
-- Require `@markup-carve/carve` 0.1.16 (#44).
+- Require `@markup-carve/carve` 0.1.17 (#44, #45, #47).
 - Lint rule `a11y/heading-jump` is no longer an alias; use `heading-level-skip`. The engine now reports the old `|=>` cell alignment as `deprecated-cell-alignment` (write `|={>}`).
 
 ### Improvements
@@ -20,6 +20,7 @@ Requires the Carve engine 0.1.16. Lint gains hint and opt-in rule controls, and 
 - Lint hints (such as `thematic-break-spelling`) are skipped unless `lint: { hints: true }` (#44).
 - `lint: { enabledRules: [...] }` turns on opt-in lint rules; the option type is exported as `CarveLintOptions` (#44).
 - Render losses from an included file name that file (#44).
+- Fenced code highlighting follows carve-grammars 0.1.23, and rendering is faster with carve-js 0.1.17 (#47).
 
 **Full Changelog**: https://github.com/markup-carve/astro-carve/compare/0.1.4...0.1.5
 
