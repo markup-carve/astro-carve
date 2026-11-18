@@ -6,6 +6,19 @@ Rendering is done by the Carve engine (`@markup-carve/carve`), so an engine
 change can alter output with no plugin diff. Engine bumps therefore get an
 entry of their own.
 
+## Unreleased on next2
+
+### Breaking
+
+- Use the Carve 0.2 engine from a pinned Git commit. This branch is not published.
+- `render` now takes Carve 0.2 options, including `headingIds`, `rawHtml`, `urlPolicy`, `extensions` and `renderers`.
+- Wiki links and Shiki highlighting report an unavailable engine API when enabled. Their options remain available for the 0.2 extension port.
+
+### Improvements
+
+- Pages, imports and collections use the 0.2 tree, include resolver, render diagnostics and lint diagnostics.
+- Raw HTML is disabled by default, and the default URL policy denies dangerous schemes.
+
 ## 0.1.5 - 2026-11-12
 
 Requires the Carve engine 0.1.17. Lint gains hint and opt-in rule controls, and render losses name the file they come from.

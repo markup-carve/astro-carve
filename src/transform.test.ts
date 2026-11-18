@@ -45,8 +45,8 @@ describe('renderCarve', () => {
     expect(html).toContain('<strong>bold</strong>')
   })
 
-  test('renders underline inline (Carve maps _x_ to <u>)', () => {
-    const { html } = renderCarve('A paragraph with _underline_ text.')
+  test('renders 0.2 braced underline inline', () => {
+    const { html } = renderCarve('A paragraph with {_underline_} text.')
     expect(html).toContain('<u>underline</u>')
   })
 

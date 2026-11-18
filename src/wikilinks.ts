@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parse, wikilinks, type CarveExtension } from '@markup-carve/carve'
+import { parse } from '@markup-carve/carve/v2'
 import { load as loadYaml } from 'js-yaml'
 import { globSync } from 'tinyglobby'
 
@@ -37,11 +37,11 @@ export function defaultEntryId(base: string, file: string, data: Record<string, 
 }
 
 function frontmatterData(file: string): Record<string, unknown> {
-  const fm = parse(readFileSync(file, 'utf8')).frontmatter
+  const fm = parse(readFileSync(file, 'utf8')).children.find(node => node.type === 'frontmatter')
   if (!fm || fm.format !== 'yaml') return {}
   let data: unknown
   // A malformed entry fails in its own render, not in every page linking to it.
-  try { data = loadYaml(fm.content) } catch { return {} }
+  try { data = loadYaml(fm.value) } catch { return {} }
   return data !== null && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {}
 }
 
@@ -110,27 +110,4 @@ export class WikiIndex {
     this.exact = exact
     this.byName = byName
   }
-}
-
-/**
- * Build the carve-js `wikilinks` extension for one render. Unresolved and
- * ambiguous targets are reported through `warn` and keep carve-js's default slug.
- */
-export function wikilinksExtension(options: CarveWikilinksOptions, index: WikiIndex | undefined, warn: (message: string) => void): CarveExtension {
-  return wikilinks({
-    cssClass: options.cssClass,
-    newWindow: options.newWindow,
-    urlGenerator: (page) => {
-      if (page === '') return ''
-      const custom = options.resolve?.(page)
-      if (custom !== undefined) return custom
-      if (!index) return wikiSlug(page)
-      const found = index.lookup(page)
-      if (found && 'url' in found) return found.url
-      warn(found
-        ? `Wiki link [[${page}]] matches several collection entries: ${found.ambiguous.join(', ')}`
-        : `Wiki link [[${page}]] matches no collection entry`)
-      return wikiSlug(page)
-    },
-  })
 }

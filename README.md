@@ -1,11 +1,11 @@
 # astro-carve
 
-Astro integration for `.crv` pages and imports, using @markup-carve/carve 0.1.17 or later. Documents render during the site build. Read the [Carve documentation](https://markup-carve.github.io/carve/) for the language syntax.
+Astro integration for Carve 0.2 `.crv` pages and imports. This `next2` branch uses an unreleased carve-js commit and is not a registry release. Documents render during the site build. Read the [Carve 0.2 specification](https://github.com/markup-carve/carve/tree/next2/spec/0.2) for the language syntax.
 
 ## Install
 
 ```sh
-npm install @markup-carve/astro-carve
+npm install github:markup-carve/astro-carve#next2
 ```
 
 ## Usage

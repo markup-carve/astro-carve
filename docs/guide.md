@@ -10,8 +10,7 @@ with [carve-js](https://github.com/markup-carve/carve-js)
 
 ## Installation notes
 
-`astro` is a peer dependency. carve-js (`@markup-carve/carve`) is a regular
-dependency, installed from npm, so the command above is all that is needed.
+`astro` is a peer dependency. carve-js is pinned by commit to its unreleased `next2` branch through npm Git support. Install this integration from its `next2` branch. The engine package builds during installation; Git and Node 20 or newer are required.
 
 ## Usage
 
@@ -34,9 +33,9 @@ Author a Carve document, for example `src/content/doc.crv`:
 title: Carve in Astro
 ---
 
-# Carve in Astro
+= Carve in Astro
 
-A paragraph with *bold*, /emphasis/, and _underline_.
+A paragraph with *bold*, /emphasis/, and {_underline_}.
 
 - one
 - two
@@ -87,8 +86,8 @@ carve({
   // Which module ids count as Carve. Default: /\.crv$/
   include: /\.crv$/,
 
-  // Forwarded to carve-js carveToHtml (extensions, heading-id options, ...).
-  render: {},
+  // Forwarded to the Carve 0.2 renderer. Raw HTML stays off by default.
+  render: { rawHtml: false, headingIds: 'keep-case' },
 
   // Parse YAML frontmatter into frontmatterData. Default true.
   parseFrontmatter: true,
@@ -105,16 +104,13 @@ carve({
   // Report carve-js lint findings as build warnings. Default false.
   lint: true, // or { platforms: ['github'], hints: true, enabledRules: [...] }
 
-  // Parse [[Page]] wiki links. Default false. See "Wiki links" below.
-  wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
-
-  // Highlight fenced code with Shiki. Default false. See "Syntax highlighting" below.
-  highlight: true,
+  // Wiki links and Shiki remain declared but await 0.2 engine extension hooks.
+  wikilinks: false,
+  highlight: false,
 })
 ```
 
-All carve-js render/parse options (including `extensions` for Tier-2 syntax)
-pass through `render`.
+Carve 0.2 render options, including `extensions`, `renderers`, `headingIds`, `rawHtml` and `urlPolicy`, pass through `render`. The secure default refuses raw HTML and denied URL schemes. `renderers` are trusted host code for registered 0.2 extensions. The old `asciiHeadingIds` and `lowercaseHeadingIds` keys are replaced by `headingIds`.
 
 Include paths resolve relative to the `.crv` file. Included files are watched,
 so editing one invalidates the importing module. Set `includes: false` to leave
@@ -156,65 +152,11 @@ carve({ lint: { hints: true, enabledRules: ['non-descriptive-link-text'] } })
 A `%% carve-lint-disable-next-line <rule>` comment in the document silences the
 finding on the next line.
 
-## Wiki links
+## Pending extension support
 
-`wikilinks` enables the carve-js `[[Page]]` syntax (`[[Page|label]]`,
-`[[Page#anchor]]`, `[[folder/page]]`) and resolves each target against content
-collections:
+The public 0.2 engine does not register the old `[[Page]]` wiki link syntax or offer a general code block renderer hook. The `wikilinks` and `highlight` options remain in this integration, but enabling either currently fails with a clear error. Existing sites using these options should stay on the 0.1 branch until the engine API supports them. The collection index and Shiki configuration types remain available for the future registration. Engine issues [5046](https://github.com/markup-carve/carve-js/issues/5046) and [5047](https://github.com/markup-carve/carve-js/issues/5047) track these gaps.
 
-```js
-carve({
-  wikilinks: {
-    collections: [
-      { base: './src/content/docs', url: '/docs/{id}/' },
-      { base: './src/content/blog', url: '/blog/{id}/', pattern: '**/*.crv' },
-    ],
-    // Optional, tried first. Return undefined to fall through to the collections.
-    resolve: (page) => (page === 'Changelog' ? '/changelog/' : undefined),
-    cssClass: 'wikilink',
-    newWindow: false,
-  },
-})
-```
-
-A page name matches an entry id the way `carveLoader` assigns it (YAML `slug`,
-else the path without `.crv`), compared as a slug, so `[[Getting Started]]`
-finds `getting-started.crv`. A name without a folder also matches a unique file
-name anywhere in the collections, so `[[Tigers]]` finds `guides/tigers.crv`.
-`{id}` in `url` is replaced by the entry id. A target that matches nothing, or
-matches entries in several places, is reported as a warning and links to the
-plain slug.
-`wikilinks: true` turns the syntax on without collections and always uses that
-slug.
-
-Pass the same `wikilinks` option to `carveLoader` for collection entries. Ids
-from a custom `generateId` are not seen by the resolver; use `resolve` for
-those. In development, adding, removing or re-slugging an entry relinks the
-loader's entries, and the loader watches every collection directory it links
-into. A `.crv` import or page picks up a new target on its next edit.
-
-## Syntax highlighting
-
-`highlight: true` highlights fenced code in `.crv` imports, pages and
-collection entries with Shiki, using the project's `markdown.shikiConfig`
-(`theme` or `themes`, `defaultColor`, `langs`, `langAlias`, `wrap`,
-`transformers`). Pass an object of the same shape to override it, for example
-`highlight: { theme: 'nord' }`. The standalone Vite plugin has no Astro config,
-so `true` there means Shiki's `github-dark`.
-
-`carve` and `crv` fences use the Carve grammar from
-`@markup-carve/carve-grammars`, with its theme colors for Carve-specific scopes
-and the marks for strikethrough, sub/superscript and highlight. Import its
-stylesheet once to render those marks:
-
-```js
-import '@markup-carve/carve-grammars/shiki/carve.css'
-```
-
-A fence's `{#id .class key=value}` attributes and quoted title land on the
-highlighted `<pre>`, which also carries `data-language`. A fence without a
-language, or in a language Shiki does not bundle, keeps the plain
-`<pre><code class="language-x">` output.
+The 0.2 extension interface is provisional. Named extension definitions and renderers can be passed through `render.extensions` and `render.renderers` where the engine supports them.
 
 ## Integration surfaces
 
