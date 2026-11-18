@@ -9,6 +9,17 @@ describe('Carve 0.2 public API boundary', () => {
     expect(result.html).toContain('id="cafe"')
   })
 
+  test('keeps a no-path direct render safe when an include root is given', () => {
+    const result = renderCarve('{{ missing.crv }}', { includeRoot: process.cwd() })
+    expect(result.html).toContain('{{ missing.crv }}')
+    expect(result.dependencies).toEqual([])
+  })
+
+  test('includes visible mentions and symbols in heading metadata', () => {
+    const result = renderCarve('= Hello @alice :smile:\n', { render: { symbols: { smile: 'happy' } } })
+    expect(result.headings[0]).toEqual({ depth: 1, slug: 'Hello-alice', text: 'Hello @alice happy' })
+  })
+
   test('keeps raw HTML off and uses the engine URL policy', () => {
     const source = '`<script>alert(1)</script>`{=html}\n\n[x](javascript:alert(1))\n'
     const safe = renderCarve(source)

@@ -160,7 +160,7 @@ function diagnosticMessage(diagnostic: Diagnostic, source: string, sourcePath?: 
 }
 
 /** Text used by Astro's heading metadata. The engine supplies the resolved id. */
-function headingText(nodes: readonly unknown[]): string {
+function headingText(nodes: readonly unknown[], symbols: Readonly<Record<string, string>>): string {
   let out = ''
   for (const value of nodes) {
     if (!value || typeof value !== 'object') continue
@@ -170,12 +170,17 @@ function headingText(nodes: readonly unknown[]): string {
     else if (node.type === 'smart_punctuation') out += String(node.glyph ?? node.source ?? '')
     else if (node.type === 'image') out += String(node.alt ?? '')
     else if (node.type === 'autolink') out += String(node.text ?? node.href ?? '')
-    else if (Array.isArray(node.children) && node.type !== 'inline_footnote') out += headingText(node.children)
+    else if (node.type === 'mention') out += `@${String(node.target ?? '')}`
+    else if (node.type === 'tag') out += `#${String(node.name ?? '')}`
+    else if (node.type === 'symbol') out += symbols[String(node.name)] ?? `:${String(node.name)}:`
+    else if (node.type === 'abbreviation') out += String(node.key ?? '')
+    else if (node.type === 'non_breaking_space') out += '\u00a0'
+    else if (Array.isArray(node.children) && node.type !== 'inline_footnote') out += headingText(node.children, symbols)
   }
   return out
 }
 
-function headingsOf(document: DocumentNode): CarveTransformResult['headings'] {
+function headingsOf(document: DocumentNode, symbols: Readonly<Record<string, string>>): CarveTransformResult['headings'] {
   const headings: CarveTransformResult['headings'] = []
   const visit = (nodes: readonly unknown[]): void => {
     for (const value of nodes) {
@@ -184,7 +189,7 @@ function headingsOf(document: DocumentNode): CarveTransformResult['headings'] {
       if (node.type === 'heading') headings.push({
         depth: Number(node.level),
         slug: String((node.attrs as { id?: string } | undefined)?.id ?? node.generatedId ?? ''),
-        text: headingText(Array.isArray(node.children) ? node.children : []),
+        text: headingText(Array.isArray(node.children) ? node.children : [], symbols),
       })
       if (Array.isArray(node.children)) visit(node.children)
     }
@@ -229,7 +234,7 @@ export function renderCarve(
   const diagnostics = [...parsed.diagnostics, ...rendered.diagnostics.filter(diagnostic => diagnostic.channel === 'render-loss'), ...lintDiagnostics]
   const warningMessages = diagnostics.map(diagnostic => diagnosticMessage(diagnostic, source, documentPath, includeRoot))
   const dependencies = includeDependencies(parsed.document).flatMap(dependency => {
-    if (!includeRoot) return []
+    if (!includes || !includeRoot) return []
     const candidate = dependency.file
       ? resolvePath(includeRoot, dependency.file)
       : resolvePath(includeRoot, dirname(dependency.from ?? relative(includeRoot, documentPath!)), dependency.path)
@@ -241,7 +246,7 @@ export function renderCarve(
     source,
     frontmatter,
     frontmatterData,
-    headings: headingsOf(parsed.document),
+    headings: headingsOf(parsed.document, renderOpts.symbols ?? {}),
     dependencies,
     warnings: warningMessages,
   }
