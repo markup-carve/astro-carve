@@ -1,22 +1,19 @@
 import {
-  carveToHtmlWithReport,
-  expandIncludes,
-  lintCarve,
-  parse,
-  renderDocumentWithReport,
-  renderPlainText,
-  resolve,
-  type LintPlatform,
-  type LintWarning,
-  type ParseOptions,
+  includeDependencies,
+  lint,
+  parseWithDiagnostics,
+  renderWithDiagnostics,
+  type Diagnostic,
+  type DocumentNode,
+  type ExtensionDefinition,
   type RenderOptions,
-} from '@markup-carve/carve'
-import { fileSystemResolver } from '@markup-carve/carve/node'
+} from '@markup-carve/carve/v2'
+import { fileSystemResolver } from '@markup-carve/carve/v2/node'
+import { readFileSync } from 'node:fs'
+import { isAbsolute, dirname, relative, resolve as resolvePath } from 'node:path'
 import { load as loadYaml } from 'js-yaml'
 import { localImages, imageImportPath } from './assets.js'
-import { dirname, resolve as resolvePath } from 'node:path'
-import { WikiIndex, wikilinksExtension, type CarveWikilinksOptions } from './wikilinks.js'
-import type { CarveExtension } from '@markup-carve/carve'
+import { WikiIndex, type CarveWikilinksOptions } from './wikilinks.js'
 import type { CarveHighlightOptions } from './highlight.js'
 
 /**
@@ -33,10 +30,10 @@ export interface CarveTransformOptions {
   /** Which module ids count as Carve. Default: `*.crv`. */
   include?: RegExp
   /**
-   * Options forwarded to carve-js (`carveToHtml`). Includes `extensions`
-   * for Tier-2 syntax, heading-id options, profile, etc.
+   * Options forwarded to the Carve 0.2 renderer, including `extensions`,
+   * `renderers`, `headingIds`, `rawHtml`, and `urlPolicy`.
    */
-  render?: ParseOptions & RenderOptions
+  render?: Omit<RenderOptions, 'includes'>
   /**
    * Parse YAML frontmatter into an object that the
    * emitted module exports as `frontmatterData`. Default `true`.
@@ -53,28 +50,24 @@ export interface CarveTransformOptions {
    * `false`. `platforms` adds host-specific rules such as `github`.
    */
   lint?: boolean | CarveLintOptions
-  /** Parse `[[Page]]` wiki links, resolved against content collections. Default `false`. */
+  /** Reserved for wiki links. The 0.2 engine lacks the syntax hook; enabling this currently throws. */
   wikilinks?: boolean | CarveWikilinksOptions
   /**
-   * Highlight fenced code with Shiki and the Carve grammar from carve-grammars.
-   * `true` uses Astro's `markdown.shikiConfig`. Default `false`.
+   * Reserved for Shiki highlighting. The 0.2 engine lacks an ordinary code block hook;
+   * enabling this currently throws. Default `false`.
    */
   highlight?: boolean | CarveHighlightOptions
 }
 
 export interface CarveLintOptions {
   /** Host-specific rules, such as `github`. */
-  platforms?: LintPlatform[]
+  platforms?: ('github')[]
   /** Also report advisory `Hint` findings, such as a thematic break not written `***`. */
   hints?: boolean
   /** Opt-in rules to run in addition to the defaults. */
   enabledRules?: readonly string[]
 }
 
-function lintMessage(warning: LintWarning): string {
-  const where = `line ${warning.line}, column ${warning.column}${warning.file ? ` of ${warning.file}` : ''}`
-  return `${warning.message} [${warning.rule}] (${where})`
-}
 
 export interface CarveTransformResult {
   html: string
@@ -153,92 +146,104 @@ function metadataModule(data: Record<string, unknown>): string[] {
  * Render Carve source to the data an Astro/Vite module needs. Pure and
  * synchronous so it can be unit tested directly without a Vite pipeline.
  */
+/** Render a v2 diagnostic with its UTF-8 byte range as an author-facing location. */
+function diagnosticMessage(diagnostic: Diagnostic, source: string, sourcePath?: string, includeRoot?: string): string {
+  if (!diagnostic.range) return `${diagnostic.message} [${diagnostic.code}]`
+  const diagnosticPath = diagnostic.file && includeRoot ? resolvePath(includeRoot, diagnostic.file) : undefined
+  const text = diagnosticPath ? readFileSync(diagnosticPath, 'utf8') : source
+  const before = Buffer.from(text).subarray(0, diagnostic.range.startOffset).toString('utf8')
+  const lines = before.split('\n')
+  const line = lines.length
+  const column = [...(lines.at(-1) ?? '')].length + 1
+  const file = diagnosticPath && diagnosticPath !== sourcePath ? ` of ${diagnosticPath}` : ''
+  return `${diagnostic.message} [${diagnostic.code}] (line ${line}, column ${column}${file})`
+}
+
+/** Text used by Astro's heading metadata. The engine supplies the resolved id. */
+function headingText(nodes: readonly unknown[]): string {
+  let out = ''
+  for (const value of nodes) {
+    if (!value || typeof value !== 'object') continue
+    const node = value as Record<string, unknown>
+    if (node.type === 'text' || node.type === 'code' || node.type === 'math' || node.type === 'literal_inline') out += String(node.value ?? '')
+    else if (node.type === 'soft_break' || node.type === 'hard_break') out += ' '
+    else if (node.type === 'smart_punctuation') out += String(node.glyph ?? node.source ?? '')
+    else if (node.type === 'image') out += String(node.alt ?? '')
+    else if (node.type === 'autolink') out += String(node.text ?? node.href ?? '')
+    else if (Array.isArray(node.children) && node.type !== 'inline_footnote') out += headingText(node.children)
+  }
+  return out
+}
+
+function headingsOf(document: DocumentNode): CarveTransformResult['headings'] {
+  const headings: CarveTransformResult['headings'] = []
+  const visit = (nodes: readonly unknown[]): void => {
+    for (const value of nodes) {
+      if (!value || typeof value !== 'object') continue
+      const node = value as Record<string, unknown>
+      if (node.type === 'heading') headings.push({
+        depth: Number(node.level),
+        slug: String((node.attrs as { id?: string } | undefined)?.id ?? node.generatedId ?? ''),
+        text: headingText(Array.isArray(node.children) ? node.children : []),
+      })
+      if (Array.isArray(node.children)) visit(node.children)
+    }
+  }
+  visit(document.children)
+  return headings
+}
+
+/** Convert one Carve 0.2 tree into the values shared by Astro pages, imports and collections. */
 export function renderCarve(
   source: string,
   options: CarveTransformOptions = {},
   sourcePath?: string,
   defaultIncludeRoot?: string,
-  wikiIndex?: WikiIndex,
-  extraExtensions: CarveExtension[] = [],
+  _wikiIndex?: WikiIndex,
+  extraExtensions: ExtensionDefinition[] = [],
 ): CarveTransformResult {
-  const wikiWarnings = new Set<string>()
-  const wiki = options.wikilinks === true ? {} : options.wikilinks || undefined
-  const index = wiki?.collections?.length
-    ? wikiIndex ?? new WikiIndex(wiki.collections, defaultIncludeRoot ?? (sourcePath ? dirname(resolvePath(sourcePath)) : process.cwd()))
-    : undefined
-  const added = [...(wiki ? [wikilinksExtension(wiki, index, (message) => wikiWarnings.add(message))] : []), ...extraExtensions]
-  const renderOpts = added.length > 0
-    ? { ...options.render, extensions: [...(options.render?.extensions ?? []), ...added] }
-    : options.render ?? {}
-  const doc = parse(source, renderOpts)
-  const includeOptions = sourcePath && (options.includes ?? true)
-    ? {
-        // A configured root reaches the resolver unchanged, so its absolute-path
-        // refusal (PART 9 section 19, I10) still fires. Resolving it here would
-        // root containment at the process working directory instead.
-        resolve: fileSystemResolver(options.includeRoot ?? defaultIncludeRoot ?? resolvePath(dirname(sourcePath))),
-        sourcePath: resolvePath(sourcePath),
-      }
-    : undefined
-  const expanded = includeOptions
-    ? expandIncludes(doc, source, { ...includeOptions, extensions: renderOpts.extensions })
-    : null
-  const resolved = resolve(expanded?.doc ?? doc, { asciiHeadingIds: renderOpts.asciiHeadingIds, lowercaseHeadingIds: renderOpts.lowercaseHeadingIds })
-  const headings: CarveTransformResult['headings'] = []
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) { value.forEach(visit); return }
-    if (value === null || typeof value !== 'object') return
-    const node = value as Record<string, unknown>
-    if (node.type === 'heading') {
-      const heading = node as unknown as import('@markup-carve/carve').Heading
-      headings.push({ depth: heading.level, slug: heading.attrs?.id ?? '', text: renderPlainText({ type:'document', children:[heading] }).trim() })
-    }
-    for (const key of ['children','items','target','fallback']) visit(node[key])
-  }
-  visit(resolved.children)
-  // A render loss is the engine saying it dropped something the author wrote: a
-  // blanked `javascript:` destination, a flattened ruby annotation, a raw block
-  // for another format. It joins `warnings`, which the loader and the Vite
-  // plugin already surface, so neither needs a change.
-  const rendered = expanded
-    ? renderDocumentWithReport(resolved, renderOpts)
-    : carveToHtmlWithReport(source, renderOpts)
-  const html = rendered.value
+  if (options.wikilinks) throw new Error('Carve 0.2 wiki links are not available yet: the engine cannot register [[Page]] syntax')
+  if (options.highlight) throw new Error('Carve 0.2 syntax highlighting is not available yet: the engine has no general code block renderer hook')
+  const renderOpts = options.render ?? {}
+  const extensions = [...(renderOpts.extensions ?? []), ...extraExtensions]
   const documentPath = sourcePath ? resolvePath(sourcePath) : undefined
-  const lossWarnings = rendered.losses.map((loss) => {
-    // A loss in included content carries the file its position is in.
-    const file = loss.file && loss.file !== documentPath ? ` of ${loss.file}` : ''
-    const at = loss.pos ? ` (line ${loss.pos.startLine}, column ${loss.pos.startColumn}${file})` : ''
-    return `${loss.message} [${loss.code}]${at}`
-  })
-  if (rendered.truncated) {
-    lossWarnings.push(`${rendered.totalLosses} render losses in total; the rest were not reported`)
-  }
-  const lint = options.lint === true ? {} : options.lint || undefined
-  const lintWarnings = lint
-    ? lintCarve(source, {
-        includes: includeOptions,
-        asciiHeadingIds: renderOpts.asciiHeadingIds,
-        lowercaseHeadingIds: renderOpts.lowercaseHeadingIds,
-        extensions: renderOpts.extensions,
-        platforms: lint.platforms,
-        enabledRules: lint.enabledRules,
-      }).filter((warning) => lint.hints || warning.severity !== 'Hint').map(lintMessage)
+  const includeRoot = options.includeRoot ?? defaultIncludeRoot ?? (documentPath ? dirname(documentPath) : undefined)
+  if (includeRoot !== undefined && !isAbsolute(includeRoot)) throw new Error('Carve includeRoot must be an absolute path')
+  const includes = documentPath && (options.includes ?? true) && includeRoot
+    ? { resolver: fileSystemResolver(includeRoot), file: relative(includeRoot, documentPath).split('\\').join('/') }
+    : undefined
+  const parsed = parseWithDiagnostics(source, { extensions, headingIds: renderOpts.headingIds, includes })
+  const rendered = renderWithDiagnostics(parsed.document, { ...renderOpts, extensions })
+  const lintOptions = options.lint === true ? {} : options.lint || undefined
+  const lintDiagnostics = lintOptions
+    ? lint(source, { extensions, includes, platforms: lintOptions.platforms,
+        rules: Object.fromEntries((lintOptions.enabledRules ?? []).map(rule => [rule, 'on' as const])) })
+        .filter(diagnostic => lintOptions.hints || diagnostic.severity !== 'hint')
     : []
-  const frontmatter: CarveFrontmatter | null = doc.frontmatter
-    ? { format: doc.frontmatter.format, content: doc.frontmatter.content }
+  const frontmatterNode = parsed.document.children.find(node => node.type === 'frontmatter')
+  const frontmatter: CarveFrontmatter | null = frontmatterNode?.type === 'frontmatter'
+    ? { format: frontmatterNode.format, content: frontmatterNode.value }
     : null
   const parseFm = options.parseFrontmatter ?? true
-  const frontmatterData =
-    parseFm && frontmatter ? parseFrontmatterData(frontmatter) : {}
+  const frontmatterData = parseFm && frontmatter ? parseFrontmatterData(frontmatter) : {}
+  const diagnostics = [...parsed.diagnostics, ...rendered.diagnostics.filter(diagnostic => diagnostic.channel === 'render-loss'), ...lintDiagnostics]
+  const warningMessages = diagnostics.map(diagnostic => diagnosticMessage(diagnostic, source, documentPath, includeRoot))
+  const dependencies = includeDependencies(parsed.document).flatMap(dependency => {
+    if (!includeRoot) return []
+    const candidate = dependency.file
+      ? resolvePath(includeRoot, dependency.file)
+      : resolvePath(includeRoot, dirname(dependency.from ?? relative(includeRoot, documentPath!)), dependency.path)
+    const inside = relative(includeRoot, candidate)
+    return inside === '..' || inside.startsWith('../') || isAbsolute(inside) ? [] : [candidate]
+  })
   return {
-    html,
+    html: rendered.html,
     source,
     frontmatter,
     frontmatterData,
-    headings,
-    dependencies: expanded?.dependencies.filter((dependency) => dependency.resolved || dependency.denial === 'not-found').map((dependency) => dependency.id) ?? [],
-    warnings: [...(expanded?.warnings.map((warning) => warning.message) ?? []), ...lossWarnings, ...wikiWarnings, ...lintWarnings],
+    headings: headingsOf(parsed.document),
+    dependencies,
+    warnings: warningMessages,
   }
 }
 

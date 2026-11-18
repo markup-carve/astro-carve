@@ -1,4 +1,3 @@
-import type { CarveExtension, CodeBlock } from '@markup-carve/carve'
 import type {
   BundledLanguage,
   BundledTheme,
@@ -118,32 +117,4 @@ export function highlighterFor(option: boolean | CarveHighlightOptions | undefin
   let highlighter = cache.get(config)
   if (!highlighter) cache.set(config, highlighter = createCarveHighlighter(config))
   return highlighter
-}
-
-/**
- * Collects fenced code during a synchronous render and leaves a placeholder,
- * so the async Shiki pass can run afterwards. Fences without a language, or in
- * a language Shiki cannot load, keep the engine's plain `<pre><code>`.
- */
-export function codeCollector(highlighter: CarveHighlighter): { extension: CarveExtension; apply(html: string): Promise<string> } {
-  const blocks: PendingBlock[] = []
-  const nonce = Math.random().toString(36).slice(2)
-  const marker = (i: number): string => `<!--astro-carve-shiki:${nonce}:${i}-->`
-  return {
-    extension: {
-      name: 'astro-carve:shiki',
-      blockRenderers: {
-        code_block: (node, ctx) => {
-          const code = node as CodeBlock
-          if (!code.lang || !highlighter.accepts(code.lang)) return undefined
-          blocks.push({ lang: code.lang, code: code.content, attrs: code.attrs as Attrs | undefined, header: code.header })
-          return `${ctx.indent(ctx.level)}${marker(blocks.length - 1)}`
-        },
-      },
-    },
-    async apply(html) {
-      const rendered = await Promise.all(blocks.map(block => highlighter.highlight(block)))
-      return rendered.reduce((out, block, i) => out.replace(marker(i), () => block), html)
-    },
-  }
 }
