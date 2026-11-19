@@ -1,3 +1,4 @@
+import type { CodeBlockNode } from '@markup-carve/carve'
 import type {
   BundledLanguage,
   BundledTheme,
@@ -18,7 +19,7 @@ export interface CarveHighlightOptions {
   wrap?: boolean | null
 }
 
-type Attrs = { id?: string; classes?: string[]; keyValues?: Record<string, string> }
+type Attrs = { id?: string; classes?: string[]; keyValues?: [string, string][] }
 
 interface PendingBlock {
   lang: string
@@ -85,7 +86,7 @@ export async function createCarveHighlighter(options: CarveHighlightOptions = {}
         pre(node) {
           if (attrs?.id) node.properties.id = attrs.id
           for (const c of attrs?.classes ?? []) this.addClassToHast(node, c)
-          for (const [key, value] of Object.entries(attrs?.keyValues ?? {})) node.properties[key] = value
+          for (const [key, value] of attrs?.keyValues ?? []) node.properties[key] = value
           if (block.header !== undefined) node.properties.title = block.header
           node.properties.dataLanguage = block.lang
           if (options.wrap === true) node.properties.style = `${node.properties.style ?? ''};overflow-x:auto;white-space:pre-wrap;word-wrap:break-word`
@@ -117,4 +118,41 @@ export function highlighterFor(option: boolean | CarveHighlightOptions | undefin
   let highlighter = cache.get(config)
   if (!highlighter) cache.set(config, highlighter = createCarveHighlighter(config))
   return highlighter
+}
+
+/** Plain text of a fence title, for the `title` attribute. */
+function titleText(nodes: readonly unknown[] | undefined): string | undefined {
+  if (!nodes) return undefined
+  let out = ''
+  for (const value of nodes) {
+    if (!value || typeof value !== 'object') continue
+    const node = value as { value?: unknown; children?: unknown[] }
+    if (typeof node.value === 'string') out += node.value
+    else if (Array.isArray(node.children)) out += titleText(node.children) ?? ''
+  }
+  return out
+}
+
+/**
+ * Highlight through the engine's `codeBlockRenderer` (C2-H-206): accepted fences
+ * render as a marker, and `apply` swaps in Shiki's HTML once it is ready.
+ */
+export function codeCollector(
+  highlighter: CarveHighlighter,
+  fallback?: (node: Readonly<CodeBlockNode>, defaultHtml: string) => string | undefined,
+): { codeBlockRenderer: (node: Readonly<CodeBlockNode>, defaultHtml: string) => string | undefined; apply(html: string): Promise<string> } {
+  const blocks: PendingBlock[] = []
+  const nonce = Math.random().toString(36).slice(2)
+  const marker = (i: number): string => `<!--astro-carve-shiki:${nonce}:${i}-->`
+  return {
+    codeBlockRenderer(node, defaultHtml) {
+      if (!node.syntax || !highlighter.accepts(node.syntax)) return fallback?.(node, defaultHtml)
+      blocks.push({ lang: node.syntax, code: node.value, attrs: node.attrs, header: titleText(node.title) })
+      return marker(blocks.length - 1)
+    },
+    async apply(html) {
+      const rendered = await Promise.all(blocks.map(block => highlighter.highlight(block)))
+      return rendered.reduce((out, block, i) => out.replace(marker(i), () => block), html)
+    },
+  }
 }

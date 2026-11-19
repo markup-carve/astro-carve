@@ -7,13 +7,13 @@ import {
   type DocumentNode,
   type ExtensionDefinition,
   type RenderOptions,
-} from '@markup-carve/carve/v2'
-import { fileSystemResolver } from '@markup-carve/carve/v2/node'
+} from '@markup-carve/carve'
+import { fileSystemResolver } from '@markup-carve/carve/node'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, dirname, relative, resolve as resolvePath } from 'node:path'
 import { load as loadYaml } from 'js-yaml'
 import { localImages, imageImportPath } from './assets.js'
-import { WikiIndex, type CarveWikilinksOptions } from './wikilinks.js'
+import { WikiIndex, wikilinksBundle, type CarveWikilinksOptions } from './wikilinks.js'
 import type { CarveHighlightOptions } from './highlight.js'
 
 /**
@@ -50,11 +50,11 @@ export interface CarveTransformOptions {
    * `false`. `platforms` adds host-specific rules such as `github`.
    */
   lint?: boolean | CarveLintOptions
-  /** Reserved for wiki links. The 0.2 engine lacks the syntax hook; enabling this currently throws. */
+  /** Link `:wiki[Page]` targets, resolved against content collections. Default `false`. */
   wikilinks?: boolean | CarveWikilinksOptions
   /**
-   * Reserved for Shiki highlighting. The 0.2 engine lacks an ordinary code block hook;
-   * enabling this currently throws. Default `false`.
+   * Highlight fenced code with Shiki and the Carve grammar from carve-grammars.
+   * `true` uses Astro's `markdown.shikiConfig`. Default `false`.
    */
   highlight?: boolean | CarveHighlightOptions
 }
@@ -146,7 +146,7 @@ function metadataModule(data: Record<string, unknown>): string[] {
  * Render Carve source to the data an Astro/Vite module needs. Pure and
  * synchronous so it can be unit tested directly without a Vite pipeline.
  */
-/** Render a v2 diagnostic with its UTF-8 byte range as an author-facing location. */
+/** Render a 0.2 diagnostic with its UTF-8 byte range as an author-facing location. */
 function diagnosticMessage(diagnostic: Diagnostic, source: string, sourcePath?: string, includeRoot?: string): string {
   if (!diagnostic.range) return `${diagnostic.message} [${diagnostic.code}]`
   const diagnosticPath = diagnostic.file && includeRoot ? resolvePath(includeRoot, diagnostic.file) : undefined
@@ -204,13 +204,23 @@ export function renderCarve(
   options: CarveTransformOptions = {},
   sourcePath?: string,
   defaultIncludeRoot?: string,
-  _wikiIndex?: WikiIndex,
+  wikiIndex?: WikiIndex,
   extraExtensions: ExtensionDefinition[] = [],
+  codeBlockRenderer?: RenderOptions['codeBlockRenderer'],
 ): CarveTransformResult {
-  if (options.wikilinks) throw new Error('Carve 0.2 wiki links are not available yet: the engine cannot register [[Page]] syntax')
-  if (options.highlight) throw new Error('Carve 0.2 syntax highlighting is not available yet: the engine has no general code block renderer hook')
   const renderOpts = options.render ?? {}
   const extensions = [...(renderOpts.extensions ?? []), ...extraExtensions]
+  let renderers = renderOpts.renderers
+  const wikiWarnings = new Set<string>()
+  const wiki = options.wikilinks === true ? {} : options.wikilinks || undefined
+  if (wiki) {
+    const index = wiki.collections?.length
+      ? wikiIndex ?? new WikiIndex(wiki.collections, defaultIncludeRoot ?? (sourcePath ? dirname(resolvePath(sourcePath)) : process.cwd()))
+      : undefined
+    const bundle = wikilinksBundle(wiki, index, message => wikiWarnings.add(message))
+    extensions.push(...bundle.extensions)
+    renderers = { ...renderers, ...bundle.renderers }
+  }
   const documentPath = sourcePath ? resolvePath(sourcePath) : undefined
   const includeRoot = options.includeRoot ?? defaultIncludeRoot ?? (documentPath ? dirname(documentPath) : undefined)
   if (includeRoot !== undefined && !isAbsolute(includeRoot)) throw new Error('Carve includeRoot must be an absolute path')
@@ -218,7 +228,9 @@ export function renderCarve(
     ? { resolver: fileSystemResolver(includeRoot), file: relative(includeRoot, documentPath).split('\\').join('/') }
     : undefined
   const parsed = parseWithDiagnostics(source, { extensions, headingIds: renderOpts.headingIds, includes })
-  const rendered = renderWithDiagnostics(parsed.document, { ...renderOpts, extensions })
+  const rendered = renderWithDiagnostics(parsed.document, {
+    ...renderOpts, extensions, renderers, ...(codeBlockRenderer ? { codeBlockRenderer } : {}),
+  })
   const lintOptions = options.lint === true ? {} : options.lint || undefined
   const lintDiagnostics = lintOptions
     ? lint(source, { extensions, includes, platforms: lintOptions.platforms,
@@ -232,7 +244,7 @@ export function renderCarve(
   const parseFm = options.parseFrontmatter ?? true
   const frontmatterData = parseFm && frontmatter ? parseFrontmatterData(frontmatter) : {}
   const diagnostics = [...parsed.diagnostics, ...rendered.diagnostics.filter(diagnostic => diagnostic.channel === 'render-loss'), ...lintDiagnostics]
-  const warningMessages = diagnostics.map(diagnostic => diagnosticMessage(diagnostic, source, documentPath, includeRoot))
+  const warningMessages = [...diagnostics.map(diagnostic => diagnosticMessage(diagnostic, source, documentPath, includeRoot)), ...wikiWarnings]
   const dependencies = includeDependencies(parsed.document).flatMap(dependency => {
     if (!includes || !includeRoot) return []
     const candidate = dependency.file
