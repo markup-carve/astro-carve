@@ -104,9 +104,11 @@ carve({
   // Report carve-js lint findings as build warnings. Default false.
   lint: true, // or { platforms: ['github'], hints: true, enabledRules: [...] }
 
-  // Wiki links and Shiki remain declared but await 0.2 engine extension hooks.
-  wikilinks: false,
-  highlight: false,
+  // Link :wiki[Page] targets. Default false. See "Wiki links" below.
+  wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
+
+  // Highlight fenced code with Shiki. Default false. See "Syntax highlighting" below.
+  highlight: true,
 })
 ```
 
@@ -152,9 +154,73 @@ carve({ lint: { hints: true, enabledRules: ['non-descriptive-link-text'] } })
 A `%% carve-lint-disable-next-line <rule>` comment in the document silences the
 finding on the next line.
 
-## Pending extension support
+## Wiki links
 
-The public 0.2 engine does not register the old `[[Page]]` wiki link syntax or offer a general code block renderer hook. The `wikilinks` and `highlight` options remain in this integration, but enabling either currently fails with a clear error. Existing sites using these options should stay on the 0.1 branch until the engine API supports them. The collection index and Shiki configuration types remain available for the future registration. Engine issues [5046](https://github.com/markup-carve/carve-js/issues/5046) and [5047](https://github.com/markup-carve/carve-js/issues/5047) track these gaps.
+`wikilinks` registers the carve-js `:wiki` matcher (C2-X-057), so
+`:wiki[Page]`, `:wiki[Page|label]`, `:wiki[Page#anchor]` and
+`:wiki[folder/page]` become links, and resolves each target against content
+collections. The 0.1 `:wiki[Page]` spelling is not Carve 0.2 syntax: the upgrade
+tool reports it (U-408), and the target is written `:wiki[Page]` instead.
+
+```js
+carve({
+  wikilinks: {
+    collections: [
+      { base: './src/content/docs', url: '/docs/{id}/' },
+      { base: './src/content/blog', url: '/blog/{id}/', pattern: '**/*.crv' },
+    ],
+    // Optional, tried first. Return undefined to fall through to the collections.
+    resolve: (page) => (page === 'Changelog' ? '/changelog/' : undefined),
+    cssClass: 'wikilink',
+    newWindow: false,
+  },
+})
+```
+
+A page name matches an entry id the way `carveLoader` assigns it (YAML `slug`,
+else the path without `.crv`), compared as a slug, so `:wiki[Getting Started]`
+finds `getting-started.crv`. A name without a folder also matches a unique file
+name anywhere in the collections, so `:wiki[Tigers]` finds `guides/tigers.crv`.
+`{id}` in `url` is replaced by the entry id. A target that matches nothing, or
+matches entries in several places, is reported as a warning and links to the
+plain slug.
+`wikilinks: true` turns the matcher on without collections and always uses that
+slug. Without `wikilinks`, a `:wiki[Page]` target renders as its plain text.
+
+Pass the same `wikilinks` option to `carveLoader` for collection entries. Ids
+from a custom `generateId` are not seen by the resolver; use `resolve` for
+those. In development, adding, removing or re-slugging an entry relinks the
+loader's entries, and the loader watches every collection directory it links
+into. A `.crv` import or page picks up a new target on its next edit.
+
+## Syntax highlighting
+
+`highlight: true` highlights fenced code in `.crv` imports, pages and
+collection entries with Shiki, using the project's `markdown.shikiConfig`
+(`theme` or `themes`, `defaultColor`, `langs`, `langAlias`, `wrap`,
+`transformers`). Pass an object of the same shape to override it, for example
+`highlight: { theme: 'nord' }`. The standalone Vite plugin has no Astro config,
+so `true` there means Shiki's `github-dark`.
+
+`carve` and `crv` fences use the Carve grammar from
+`@markup-carve/carve-grammars`, with its theme colors for Carve-specific scopes
+and the marks for strikethrough, sub/superscript and highlight. Import its
+stylesheet once to render those marks:
+
+```js
+import '@markup-carve/carve-grammars/shiki/carve.css'
+```
+
+Highlighting runs through the engine's `codeBlockRenderer` hook (C2-H-206). A
+`render.codeBlockRenderer` of your own still handles the fences Shiki does not
+take.
+
+A fence's `{#id .class key=value}` attributes and quoted title land on the
+highlighted `<pre>`, which also carries `data-language`. A fence without a
+language, or in a language Shiki does not bundle, keeps the plain
+`<pre><code class="language-x">` output.
+
+## Extensions
 
 The 0.2 extension interface is provisional. Named extension definitions and renderers can be passed through `render.extensions` and `render.renderers` where the engine supports them.
 

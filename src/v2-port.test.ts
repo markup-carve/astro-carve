@@ -1,4 +1,4 @@
-import { tabsExtensions, tabsRenderer } from '@markup-carve/carve/v2'
+import { tabsExtensions, tabsRenderer } from '@markup-carve/carve'
 import { describe, expect, test } from 'vitest'
 import { renderCarve } from './transform.js'
 

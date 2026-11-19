@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parse } from '@markup-carve/carve/v2'
+import { parse } from '@markup-carve/carve'
+import { wikilinks, type ExtensionBundle } from '@markup-carve/carve/extensions'
 import { load as loadYaml } from 'js-yaml'
 import { globSync } from 'tinyglobby'
 
@@ -16,7 +17,7 @@ export interface CarveWikiCollection {
 }
 
 export interface CarveWikilinksOptions {
-  /** Collections searched for `[[Page]]` targets, in order. */
+  /** Collections searched for `:wiki[Page]` targets, in order. */
   collections?: CarveWikiCollection[]
   /** Custom resolver, tried first. Return `undefined` to fall through to the collections. */
   resolve?: (page: string) => string | undefined
@@ -110,4 +111,24 @@ export class WikiIndex {
     this.exact = exact
     this.byName = byName
   }
+}
+
+/** The engine's `:wiki[Page]` bundle (C2-X-057), resolving targets against the collections. */
+export function wikilinksBundle(options: CarveWikilinksOptions, index: WikiIndex | undefined, warn: (message: string) => void): ExtensionBundle {
+  return wikilinks({
+    cssClass: options.cssClass,
+    newWindow: options.newWindow,
+    urlGenerator: (page) => {
+      if (page === '') return ''
+      const custom = options.resolve?.(page)
+      if (custom !== undefined) return custom
+      if (!index) return wikiSlug(page)
+      const found = index.lookup(page)
+      if (found && 'url' in found) return found.url
+      warn(found
+        ? `Wiki link :wiki[${page}] matches several collection entries: ${found.ambiguous.join(', ')}`
+        : `Wiki link :wiki[${page}] matches no collection entry`)
+      return wikiSlug(page)
+    },
+  })
 }

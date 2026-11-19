@@ -7,6 +7,7 @@ import {
   renderCarve,
   type CarveTransformOptions,
 } from './transform.js'
+import { codeCollector, highlighterFor } from './highlight.js'
 import { WikiIndex } from './wikilinks.js'
 
 /**
@@ -39,7 +40,10 @@ export function carveVitePlugin(options: CarveTransformOptions = {}, pageRoot?: 
       include.lastIndex = 0
       if (!filename || !include.test(filename)) return null
 
-      const result = renderCarve(source, options, filename, projectRoot, wikiIndex)
+      const highlighter = await highlighterFor(options.highlight)
+      const collector = highlighter ? codeCollector(highlighter, options.render?.codeBlockRenderer) : undefined
+      const result = renderCarve(source, options, filename, projectRoot, wikiIndex, [], collector?.codeBlockRenderer)
+      if (collector) result.html = await collector.apply(result.html)
       for (const dependency of result.dependencies) this.addWatchFile(dependency)
       for (const warning of result.warnings) this.warn(warning)
       const pagePath = pageRoot ? relative(pageRoot, filename) : undefined
