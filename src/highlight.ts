@@ -139,8 +139,8 @@ function titleText(nodes: readonly unknown[] | undefined): string | undefined {
  */
 export function codeCollector(
   highlighter: CarveHighlighter,
-  fallback?: (node: Readonly<CodeBlockNode>, defaultHtml: string) => string | undefined,
-): { codeBlockRenderer: (node: Readonly<CodeBlockNode>, defaultHtml: string) => string | undefined; apply(html: string): Promise<string> } {
+  fallback?: ((node: Readonly<CodeBlockNode>, defaultHtml: string) => string | null | undefined) | null,
+): { codeBlockRenderer: (node: Readonly<CodeBlockNode>, defaultHtml: string) => string | null | undefined; apply(html: string): Promise<string> } {
   const blocks: PendingBlock[] = []
   const nonce = Math.random().toString(36).slice(2)
   const marker = (i: number): string => `<!--astro-carve-shiki:${nonce}:${i}-->`
