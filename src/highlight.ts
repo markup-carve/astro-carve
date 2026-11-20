@@ -1,4 +1,4 @@
-import type { CarveExtension, CodeBlock } from '@markup-carve/carve'
+import type { CodeBlockNode } from '@markup-carve/carve'
 import type {
   BundledLanguage,
   BundledTheme,
@@ -19,7 +19,7 @@ export interface CarveHighlightOptions {
   wrap?: boolean | null
 }
 
-type Attrs = { id?: string; classes?: string[]; keyValues?: Record<string, string> }
+type Attrs = { id?: string; classes?: string[]; keyValues?: [string, string][] }
 
 interface PendingBlock {
   lang: string
@@ -86,7 +86,7 @@ export async function createCarveHighlighter(options: CarveHighlightOptions = {}
         pre(node) {
           if (attrs?.id) node.properties.id = attrs.id
           for (const c of attrs?.classes ?? []) this.addClassToHast(node, c)
-          for (const [key, value] of Object.entries(attrs?.keyValues ?? {})) node.properties[key] = value
+          for (const [key, value] of attrs?.keyValues ?? []) node.properties[key] = value
           if (block.header !== undefined) node.properties.title = block.header
           node.properties.dataLanguage = block.lang
           if (options.wrap === true) node.properties.style = `${node.properties.style ?? ''};overflow-x:auto;white-space:pre-wrap;word-wrap:break-word`
@@ -120,26 +120,35 @@ export function highlighterFor(option: boolean | CarveHighlightOptions | undefin
   return highlighter
 }
 
+/** Plain text of a fence title, for the `title` attribute. */
+function titleText(nodes: readonly unknown[] | undefined): string | undefined {
+  if (!nodes) return undefined
+  let out = ''
+  for (const value of nodes) {
+    if (!value || typeof value !== 'object') continue
+    const node = value as { value?: unknown; children?: unknown[] }
+    if (typeof node.value === 'string') out += node.value
+    else if (Array.isArray(node.children)) out += titleText(node.children) ?? ''
+  }
+  return out
+}
+
 /**
- * Collects fenced code during a synchronous render and leaves a placeholder,
- * so the async Shiki pass can run afterwards. Fences without a language, or in
- * a language Shiki cannot load, keep the engine's plain `<pre><code>`.
+ * Highlight through the engine's `codeBlockRenderer` (C2-H-206): accepted fences
+ * render as a marker, and `apply` swaps in Shiki's HTML once it is ready.
  */
-export function codeCollector(highlighter: CarveHighlighter): { extension: CarveExtension; apply(html: string): Promise<string> } {
+export function codeCollector(
+  highlighter: CarveHighlighter,
+  fallback?: ((node: Readonly<CodeBlockNode>, defaultHtml: string) => string | null | undefined) | null,
+): { codeBlockRenderer: (node: Readonly<CodeBlockNode>, defaultHtml: string) => string | null | undefined; apply(html: string): Promise<string> } {
   const blocks: PendingBlock[] = []
   const nonce = Math.random().toString(36).slice(2)
   const marker = (i: number): string => `<!--astro-carve-shiki:${nonce}:${i}-->`
   return {
-    extension: {
-      name: 'astro-carve:shiki',
-      blockRenderers: {
-        code_block: (node, ctx) => {
-          const code = node as CodeBlock
-          if (!code.lang || !highlighter.accepts(code.lang)) return undefined
-          blocks.push({ lang: code.lang, code: code.content, attrs: code.attrs as Attrs | undefined, header: code.header })
-          return `${ctx.indent(ctx.level)}${marker(blocks.length - 1)}`
-        },
-      },
+    codeBlockRenderer(node, defaultHtml) {
+      if (!node.syntax || !highlighter.accepts(node.syntax)) return fallback?.(node, defaultHtml)
+      blocks.push({ lang: node.syntax, code: node.value, attrs: node.attrs, header: titleText(node.title) })
+      return marker(blocks.length - 1)
     },
     async apply(html) {
       const rendered = await Promise.all(blocks.map(block => highlighter.highlight(block)))

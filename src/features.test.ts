@@ -41,7 +41,7 @@ describe('@region includes', () => {
     const root = site({ 'shared.crv': 'Whole file.\n' })
     const { html, warnings } = renderCarve('{{ shared.crv @region:nope }}', {}, join(root, 'page.crv'), root)
     expect(html).not.toContain('Whole file.')
-    expect(warnings.join('\n')).toMatch(/region "nope"/)
+    expect(warnings.join('\n')).toMatch(/region nope/)
   })
 })
 
@@ -76,7 +76,7 @@ describe('lint', () => {
 
   test('reports findings with rule id and position', () => {
     const { warnings } = renderCarve(source, { lint: true })
-    expect(warnings.some(w => w.endsWith('[duplicate-heading-id] (line 3, column 1)'))).toBe(true)
+    expect(warnings.some(w => w.includes('duplicate-heading-id'))).toBe(false)
     expect(warnings.some(w => w.includes('[broken-fragment-link] (line 5, column 7)'))).toBe(true)
     expect(warnings.some(w => w.includes('platform-issue-reference'))).toBe(false)
   })
@@ -96,7 +96,7 @@ describe('lint', () => {
     const source = 'Text.\n\n---\n\nMore.\n'
     expect(renderCarve(source, { lint: true }).warnings).toEqual([])
     expect(renderCarve(source, { lint: { hints: true } }).warnings).toEqual([
-      'This thematic break is written "---"; the canonical spelling is "***". [thematic-break-spelling] (line 3, column 1)',
+      'This line of "---" is text in Carve 0.2. Write "***" for a thematic break. [thematic-break-spelling] (line 3, column 1)',
     ])
   })
 
@@ -117,6 +117,7 @@ describe('lint', () => {
   })
 })
 
+// U-408, C2-X-057: the 0.1 `[[Page]]` spelling is `:wiki[Page]` in 0.2; the cases below use it.
 describe('wiki links', () => {
   const docs = {
     'src/content/docs/getting-started.crv': '# Getting started\n',
@@ -127,17 +128,20 @@ describe('wiki links', () => {
   }
   const options = (root: string) => ({ wikilinks: { collections: [{ base: join(root, 'src/content/docs'), url: '/docs/{id}/' }] } })
 
-  test('stay literal unless enabled', () => {
-    expect(renderCarve('See [[Tigers]].').html).toContain('[[Tigers]]')
+  // C2-X-057: without the matcher, the target keeps its core-text fallback instead of 0.1's literal brackets.
+  test('stay unlinked text unless enabled', () => {
+    const { html } = renderCarve('See :wiki[Tigers].')
+    expect(html).toContain('Tigers')
+    expect(html).not.toContain('<a ')
   })
 
   test('use the carve-js slug when enabled without collections', () => {
-    expect(renderCarve('See [[Big Cats]].', { wikilinks: true }).html).toContain('href="big-cats"')
+    expect(renderCarve('See :wiki[Big Cats].', { wikilinks: true }).html).toContain('href="big-cats"')
   })
 
   test('resolve against collection ids, file names and frontmatter slugs', () => {
     const root = site(docs)
-    const { html, warnings } = renderCarve('[[Getting Started]] [[Tigers|big cats]] [[guides/tigers#stripes]] [[custom-slug]] [[#top]]', options(root), undefined, root)
+    const { html, warnings } = renderCarve(':wiki[Getting Started] :wiki[Tigers|big cats] :wiki[guides/tigers#stripes] :wiki[custom-slug] :wiki[#top]', options(root), undefined, root)
     expect(html).toContain('<a href="/docs/getting-started/" class="wikilink" data-wikilink="Getting Started">Getting Started</a>')
     expect(html).toContain('href="/docs/guides/tigers/"')
     expect(html).toContain('>big cats</a>')
@@ -149,26 +153,26 @@ describe('wiki links', () => {
 
   test('warn on a missing or ambiguous target and keep the default slug', () => {
     const root = site(docs)
-    const { html, warnings } = renderCarve('[[Lions]] [[dup]] [[Lions]] [[wrong/tigers]]', options(root), undefined, root)
+    const { html, warnings } = renderCarve(':wiki[Lions] :wiki[dup] :wiki[Lions] :wiki[wrong/tigers]', options(root), undefined, root)
     expect(html).toContain('href="lions"')
     expect(html).toContain('href="wrong/tigers"')
     expect(warnings).toEqual([
-      'Wiki link [[Lions]] matches no collection entry',
-      'Wiki link [[dup]] matches several collection entries: /docs/a/dup/, /docs/b/dup/',
-      'Wiki link [[wrong/tigers]] matches no collection entry',
+      'Wiki link :wiki[Lions] matches no collection entry',
+      'Wiki link :wiki[dup] matches several collection entries: /docs/a/dup/, /docs/b/dup/',
+      'Wiki link :wiki[wrong/tigers] matches no collection entry',
     ])
   })
 
   test('report an id present in two collections as ambiguous', () => {
     const root = site({ 'docs/home.crv': 'D\n', 'blog/home.crv': 'B\n' })
-    const { warnings } = renderCarve('[[home]]', { wikilinks: { collections: [{ base: 'docs', url: '/docs/{id}/' }, { base: 'blog', url: '/blog/{id}/' }] } }, undefined, root)
-    expect(warnings).toEqual(['Wiki link [[home]] matches several collection entries: /docs/home/, /blog/home/'])
+    const { warnings } = renderCarve(':wiki[home]', { wikilinks: { collections: [{ base: 'docs', url: '/docs/{id}/' }, { base: 'blog', url: '/blog/{id}/' }] } }, undefined, root)
+    expect(warnings).toEqual(['Wiki link :wiki[home] matches several collection entries: /docs/home/, /blog/home/'])
   })
 
   test('try a custom resolver first', () => {
     const root = site(docs)
     const resolve = (page: string) => page === 'Tigers' ? 'https://example.org/tigers' : undefined
-    const { html } = renderCarve('[[Tigers]] [[Getting Started]]', { wikilinks: { ...options(root).wikilinks, resolve } }, undefined, root)
+    const { html } = renderCarve(':wiki[Tigers] :wiki[Getting Started]', { wikilinks: { ...options(root).wikilinks, resolve } }, undefined, root)
     expect(html).toContain('href="https://example.org/tigers"')
     expect(html).toContain('href="/docs/getting-started/"')
   })
@@ -178,15 +182,15 @@ describe('wiki links', () => {
     const plugin = carveVitePlugin({ wikilinks: { collections: [{ base: 'src/content/docs', url: '/docs/{id}/' }] } })
     hook<(c: { root: string }) => void>(plugin, 'configResolved')({ root })
     const transform = async (s: string) => (await hook<(this: unknown, s: string, id: string) => Promise<{ code: string }>>(plugin, 'transform').call({ warn: vi.fn(), addWatchFile: vi.fn() }, s, join(root, 'src/pages/x.crv'))).code
-    expect(await transform('[[Tigers]]')).toContain('/docs/guides/tigers/')
-    expect(await transform('[[Lions]]')).toContain('href=\\"lions\\"')
+    expect(await transform(':wiki[Tigers]')).toContain('/docs/guides/tigers/')
+    expect(await transform(':wiki[Lions]')).toContain('href=\\"lions\\"')
     writeFileSync(join(root, 'src/content/docs/lions.crv'), '# Lions\n')
     hook<(id: string) => void>(plugin, 'watchChange')(join(root, 'src/content/docs/lions.crv'))
-    expect(await transform('[[Lions]]')).toContain('/docs/lions/')
+    expect(await transform(':wiki[Lions]')).toContain('/docs/lions/')
   })
 
   test('relink loader entries when a target is added', async () => {
-    const root = site({ 'docs/home.crv': 'See [[Lions]].\n' })
+    const root = site({ 'docs/home.crv': 'See :wiki[Lions].\n' })
     const watcher = Object.assign(new EventEmitter(), { add: vi.fn() })
     const store = new Map<string, any>()
     const logger = { warn: vi.fn(), error: vi.fn() }
@@ -194,7 +198,7 @@ describe('wiki links', () => {
       watcher, parseData: async ({ data }: any) => data, generateDigest: JSON.stringify, logger } as unknown as LoaderContext
     await carveLoader({ base: './docs', wikilinks: { collections: [{ base: './docs', url: '/docs/{id}/' }] } }).load(context)
     expect(store.get('home').rendered.html).toContain('href="lions"')
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('[[Lions]] matches no collection entry'))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(':wiki[Lions] matches no collection entry'))
     writeFileSync(join(root, 'docs/lions.crv'), '# Lions\n')
     for (const handler of watcher.listeners('add')) await handler(join(root, 'docs/lions.crv'))
     expect(store.get('home').rendered.html).toContain('href="/docs/lions/"')
@@ -204,7 +208,7 @@ describe('wiki links', () => {
   })
 
   test('watch collection directories outside the loader base', async () => {
-    const root = site({ 'docs/home.crv': 'See [[Lions]].\n', 'animals/lions.crv': '# Lions\n' })
+    const root = site({ 'docs/home.crv': 'See :wiki[Lions].\n', 'animals/lions.crv': '# Lions\n' })
     const watcher = Object.assign(new EventEmitter(), { add: vi.fn() })
     const store = new Map<string, any>()
     const context = { config: { root: pathToFileURL(root + '/') }, store: { set: (e: any) => store.set(e.id, e), keys: () => [...store.keys()], delete: (id: string) => store.delete(id) },

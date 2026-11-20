@@ -4,9 +4,9 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { glob } from 'tinyglobby'
 import { localImages, imageImportPath } from './assets.js'
+import { codeCollector, highlighterFor, type CarveHighlightOptions } from './highlight.js'
 import { renderCarve, type CarveTransformOptions } from './transform.js'
 import { defaultEntryId, WikiIndex } from './wikilinks.js'
-import { codeCollector, highlighterFor, type CarveHighlightOptions } from './highlight.js'
 
 export interface CarveLoaderOptions extends CarveTransformOptions {
   base: string | URL
@@ -37,8 +37,8 @@ export function carveLoader(options: CarveLoaderOptions): Loader {
         file = resolve(file)
         const source = await readFile(file, 'utf8')
         const highlighter = await highlighterFor(options.highlight, context.config.markdown?.shikiConfig as CarveHighlightOptions | undefined)
-        const collector = highlighter ? codeCollector(highlighter) : undefined
-        const result = renderCarve(source, options, file, projectRoot, wikiIndex, collector ? [collector.extension] : [])
+        const collector = highlighter ? codeCollector(highlighter, options.render?.codeBlockRenderer) : undefined
+        const result = renderCarve(source, options, file, projectRoot, wikiIndex, [], collector?.codeBlockRenderer)
         if (collector) result.html = await collector.apply(result.html)
         const data = result.frontmatterData
         if (options.parseFrontmatter !== false && result.frontmatter && result.frontmatter.format !== 'yaml') {

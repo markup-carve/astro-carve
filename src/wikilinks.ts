@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parse, wikilinks, type CarveExtension } from '@markup-carve/carve'
+import { parse } from '@markup-carve/carve'
+import { wikilinks, type ExtensionBundle } from '@markup-carve/carve/extensions'
 import { load as loadYaml } from 'js-yaml'
 import { globSync } from 'tinyglobby'
 
@@ -16,7 +17,7 @@ export interface CarveWikiCollection {
 }
 
 export interface CarveWikilinksOptions {
-  /** Collections searched for `[[Page]]` targets, in order. */
+  /** Collections searched for `:wiki[Page]` targets, in order. */
   collections?: CarveWikiCollection[]
   /** Custom resolver, tried first. Return `undefined` to fall through to the collections. */
   resolve?: (page: string) => string | undefined
@@ -37,11 +38,11 @@ export function defaultEntryId(base: string, file: string, data: Record<string, 
 }
 
 function frontmatterData(file: string): Record<string, unknown> {
-  const fm = parse(readFileSync(file, 'utf8')).frontmatter
+  const fm = parse(readFileSync(file, 'utf8')).children.find(node => node.type === 'frontmatter')
   if (!fm || fm.format !== 'yaml') return {}
   let data: unknown
   // A malformed entry fails in its own render, not in every page linking to it.
-  try { data = loadYaml(fm.content) } catch { return {} }
+  try { data = loadYaml(fm.value) } catch { return {} }
   return data !== null && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {}
 }
 
@@ -112,11 +113,8 @@ export class WikiIndex {
   }
 }
 
-/**
- * Build the carve-js `wikilinks` extension for one render. Unresolved and
- * ambiguous targets are reported through `warn` and keep carve-js's default slug.
- */
-export function wikilinksExtension(options: CarveWikilinksOptions, index: WikiIndex | undefined, warn: (message: string) => void): CarveExtension {
+/** The engine's `:wiki[Page]` bundle (C2-X-057), resolving targets against the collections. */
+export function wikilinksBundle(options: CarveWikilinksOptions, index: WikiIndex | undefined, warn: (message: string) => void): ExtensionBundle {
   return wikilinks({
     cssClass: options.cssClass,
     newWindow: options.newWindow,
@@ -128,8 +126,8 @@ export function wikilinksExtension(options: CarveWikilinksOptions, index: WikiIn
       const found = index.lookup(page)
       if (found && 'url' in found) return found.url
       warn(found
-        ? `Wiki link [[${page}]] matches several collection entries: ${found.ambiguous.join(', ')}`
-        : `Wiki link [[${page}]] matches no collection entry`)
+        ? `Wiki link :wiki[${page}] matches several collection entries: ${found.ambiguous.join(', ')}`
+        : `Wiki link :wiki[${page}] matches no collection entry`)
       return wikiSlug(page)
     },
   })

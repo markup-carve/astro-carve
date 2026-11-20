@@ -3,16 +3,16 @@ title: Carve in Astro
 draft: false
 ---
 
-# Carve in Astro
+= Carve in Astro
 
 This page body was authored in *Carve* and rendered to HTML by carve-js at
 build time.
 
-## Features shown here
+== Features shown here
 
 - headings
 - *bold* text
-- /emphasis/ and _underline_
+- /emphasis/ and {_underline_}
 - lists
 
 > A blockquote, because why not.
