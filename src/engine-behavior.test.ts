@@ -57,4 +57,12 @@ describe('engine behavior the transform reaches', () => {
       'Blanked a denied destination scheme [destination-denied] (line 1, column 1)',
     )
   })
+
+  it('counts the diagnostics past the loss cap instead of dropping them', () => {
+    const source = '[a](javascript:1) [b](javascript:2) [c](javascript:3)\n'
+    const { warnings } = renderCarve(source, { render: { maxLosses: 1 } })
+
+    expect(warnings.filter(warning => warning.includes('[destination-denied]'))).toHaveLength(1)
+    expect(warnings).toContain('2 more diagnostics were not reported')
+  })
 })
