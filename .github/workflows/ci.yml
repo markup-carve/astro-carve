@@ -29,6 +29,9 @@ jobs:
           - node-version: '22'
             astro-version: '7'
             check-name: 'build-test (22)'
+          - node-version: '24'
+            astro-version: '7'
+            check-name: 'build-test (24)'
     steps:
       - uses: actions/checkout@v7
 

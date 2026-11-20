@@ -159,7 +159,7 @@ finding on the next line.
 `wikilinks` registers the carve-js `:wiki` matcher (C2-X-057), so
 `:wiki[Page]`, `:wiki[Page|label]`, `:wiki[Page#anchor]` and
 `:wiki[folder/page]` become links, and resolves each target against content
-collections. The 0.1 `:wiki[Page]` spelling is not Carve 0.2 syntax: the upgrade
+collections. The 0.1 `[[Page]]` spelling is not Carve 0.2 syntax: the upgrade
 tool reports it (U-408), and the target is written `:wiki[Page]` instead.
 
 ```js

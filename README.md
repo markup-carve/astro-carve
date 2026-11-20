@@ -8,6 +8,8 @@ Astro integration for Carve 0.2 `.crv` pages and imports. This `next2` branch us
 npm install github:markup-carve/astro-carve#next2
 ```
 
+The engine builds during installation, so this needs Git and Node.js 20 or newer.
+
 ## Usage
 
 ```js
