@@ -245,6 +245,8 @@ export function renderCarve(
   const frontmatterData = parseFm && frontmatter ? parseFrontmatterData(frontmatter) : {}
   const diagnostics = [...parsed.diagnostics, ...rendered.diagnostics.filter(diagnostic => diagnostic.channel === 'render-loss'), ...lintDiagnostics]
   const warningMessages = [...diagnostics.map(diagnostic => diagnosticMessage(diagnostic, source, documentPath, includeRoot)), ...wikiWarnings]
+  const suppressed = parsed.suppressedDiagnostics + rendered.suppressedDiagnostics
+  if (suppressed) warningMessages.push(`${suppressed} more diagnostics were not reported`)
   const dependencies = includeDependencies(parsed.document).flatMap(dependency => {
     if (!includes || !includeRoot) return []
     const candidate = dependency.file
