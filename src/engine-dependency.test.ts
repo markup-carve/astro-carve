@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest'
  * (release.yml); these tests run the real script on every pull request.
  */
 const guard = fileURLToPath(new URL('../scripts/no-git-dependencies.mjs', import.meta.url))
-const manifestPath = fileURLToPath(new URL('../package.json', import.meta.url))
 const releaseWorkflow = fileURLToPath(new URL('../.github/workflows/release.yml', import.meta.url))
 
 type Manifest = {
@@ -23,7 +22,13 @@ type Manifest = {
   peerDependencies?: Record<string, string>
 }
 
-const committed = JSON.parse(readFileSync(manifestPath, 'utf8')) as Manifest
+const registryManifest: Manifest = {
+  dependencies: {
+    '@markup-carve/carve': '^0.1.17',
+    '@markup-carve/carve-grammars': '^0.1.23',
+  },
+  peerDependencies: { astro: '>=5.9.0 <8.0.0' },
+}
 const scratch = mkdtempSync(join(tmpdir(), 'astro-carve-guard-'))
 
 function runGuard(manifest: Manifest): { status: number | null; out: string } {
@@ -35,12 +40,9 @@ function runGuard(manifest: Manifest): { status: number | null; out: string } {
 }
 
 const withEngine = (spec: string): Manifest => ({
-  ...committed,
-  dependencies: { ...committed.dependencies, '@markup-carve/carve': spec },
+  ...registryManifest,
+  dependencies: { ...registryManifest.dependencies, '@markup-carve/carve': spec },
 })
-
-const isGitSpec = (spec: string): boolean =>
-  /^(github|gitlab|bitbucket|git|git\+[a-z.+-]+|ssh):/i.test(spec) || /^[^@:\s]+\/[^@:\s]+(#.*)?$/.test(spec)
 
 describe('the publish-time git-dependency guard', () => {
   it.each([
@@ -68,17 +70,24 @@ describe('the publish-time git-dependency guard', () => {
     expect(status).toBe(0)
   })
 
-  it('gives the committed manifest the verdict a publish would', () => {
-    const spec =
-      committed.dependencies?.['@markup-carve/carve'] ?? committed.devDependencies?.['@markup-carve/carve']
-    expect(spec).toBeDefined()
-    const { status } = runGuard(committed)
-    if (isGitSpec(spec as string)) {
-      expect(status).not.toBe(0)
-    } else {
-      expect(spec).toMatch(/^[\^~]?\d+\.\d+\.\d+/)
-      expect(status).toBe(0)
+  it('accepts a publishable manifest with registry engine and grammar dependencies', () => {
+    const { status, out } = runGuard(registryManifest)
+    expect(status).toBe(0)
+    expect(out).toMatch(/resolve from the registry/)
+  })
+
+  it('refuses a git-pinned grammar dependency at publish time', () => {
+    const manifest: Manifest = {
+      ...registryManifest,
+      dependencies: {
+        ...registryManifest.dependencies,
+        '@markup-carve/carve-grammars': 'github:markup-carve/carve-grammars#6621ad1',
+      },
     }
+    const { status, out } = runGuard(manifest)
+    expect(status).not.toBe(0)
+    expect(out).toMatch(/dependencies\.@markup-carve\/carve-grammars/)
+    expect(out).toMatch(/would not resolve from the registry/)
   })
 
   it('is run by the release workflow before the tag and the publish', () => {
