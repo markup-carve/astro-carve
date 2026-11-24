@@ -93,10 +93,10 @@ describe('lint', () => {
   })
 
   test('leaves hints out unless asked for', () => {
-    const source = 'Text.\n\n---\n\nMore.\n'
+    const source = 'Text {.x} here.\n'
     expect(renderCarve(source, { lint: true }).warnings).toEqual([])
     expect(renderCarve(source, { lint: { hints: true } }).warnings).toEqual([
-      'This line of "---" is text in Carve 0.2. Write "***" for a thematic break. [thematic-break-spelling] (line 3, column 1)',
+      'This attribute block is attached to nothing and renders as text. Glue it to a span, link or code span, or escape the brace. [unattached-inline-attribute] (line 1, column 6)',
     ])
   })
 
@@ -114,6 +114,47 @@ describe('lint', () => {
     const warn = vi.fn()
     await hook<(this: unknown, s: string, id: string) => unknown>(plugin, 'transform').call({ warn, addWatchFile: vi.fn() }, '[x](#nowhere)\n', join(root, 'doc.crv'))
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('[broken-fragment-link]'))
+  })
+})
+
+describe('upgradeHints', () => {
+  const source = 'Text\n# Heading\n\nSome _underline_ and _more_.\n'
+
+  test('is off by default', () => {
+    expect(renderCarve(source).warnings).toEqual([])
+  })
+
+  test('reports each upgrade row once and renders the source as written', () => {
+    const { html, warnings } = renderCarve(source, { upgradeHints: true })
+    expect(warnings).toEqual([
+      'Carve 0.1 source: blank line put above a block that 0.2 reads as a lazy line directly under text [U-001] (line 2)',
+      'Carve 0.1 source: bare underline put in braces [U-065] (line 4)',
+    ])
+    expect(html).toBe(renderCarve(source).html)
+  })
+
+  test('reports an upgrade row that needs a person even when nothing is rewritten', () => {
+    expect(renderCarve('- a\n\n  b\n', { upgradeHints: true }).warnings).toEqual(['Carve 0.1 source: a loose list with one item is tight in 0.2, its first paragraph loses the paragraph element [U-021] (line 1)'])
+  })
+
+  test('stays quiet on a document the upgrade leaves unchanged', () => {
+    expect(renderCarve('# Heading\n\nPlain text.\n', { upgradeHints: true }).warnings).toEqual([])
+  })
+
+  test('reports 0.1 wiki links when wikilinks is on', () => {
+    const wiki = '[[Page]]\n'
+    expect(renderCarve(wiki, { upgradeHints: true }).warnings).toEqual([])
+    expect(renderCarve(wiki, { upgradeHints: true, wikilinks: true }).warnings).toEqual([
+      expect.stringMatching(/^Carve 0\.1 source: The 0\.1 wikilinks extension read `\[\[Page\]\]`.*\[U-423\] \(line 1\)$/),
+    ])
+  })
+
+  test('reaches the Vite warnings channel', async () => {
+    const root = site({})
+    const plugin = carveVitePlugin({ upgradeHints: true })
+    const warn = vi.fn()
+    await hook<(this: unknown, s: string, id: string) => unknown>(plugin, 'transform').call({ warn, addWatchFile: vi.fn() }, 'Some _underline_ text.\n', join(root, 'doc.crv'))
+    expect(warn).toHaveBeenCalledWith('Carve 0.1 source: bare underline put in braces [U-065] (line 1)')
   })
 })
 

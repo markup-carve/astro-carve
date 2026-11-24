@@ -104,6 +104,9 @@ carve({
   // Report carve-js lint findings as build warnings. Default false.
   lint: true, // or { platforms: ['github'], hints: true, enabledRules: [...] }
 
+  // Report what the Carve 0.1 to 0.2 upgrade finds. Default false. See below.
+  upgradeHints: false,
+
   // Link :wiki[Page] targets. Default false. See "Wiki links" below.
   wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
 
@@ -143,8 +146,8 @@ pages, the content-layer log for collections. A finding reads
 finding is inside one. `lint: { platforms: ['github'] }` adds the rules for text
 that GitHub re-links, such as a bare `#12`. Lint never fails the build.
 
-Advisory `Hint` findings, such as a thematic break not written `***`, are left
-out. `lint: { hints: true }` reports them, and `enabledRules` runs opt-in rules
+Advisory `Hint` findings, such as an inline attribute that attaches to nothing,
+are left out. `lint: { hints: true }` reports them, and `enabledRules` runs opt-in rules
 on top of the defaults:
 
 ```js
@@ -154,6 +157,30 @@ carve({ lint: { hints: true, enabledRules: ['non-descriptive-link-text'] } })
 A `%% carve-lint-disable-next-line <rule>` comment in the document silences the
 finding on the next line.
 
+## Carve 0.1 sources
+
+A site moving from Carve 0.1 can set `upgradeHints: true`. Each `.crv` module
+and collection entry then runs through the engine's 0.1 to 0.2 upgrade
+(`@markup-carve/carve/upgrade`), and each distinct row of its report becomes a
+warning in the same channel as lint findings:
+
+```js
+carve({ upgradeHints: true })
+```
+
+```text
+Carve 0.1 source: bare underline put in braces [U-065] (line 4)
+```
+
+Rows such as `U-021` (a one-item loose list turns tight) need a person and
+rewrite nothing; they are reported too. The page still renders as written. Run
+`carve upgrade` on the sources to apply the rewrites, then turn the option off:
+the upgrade reads every input as 0.1 and on a 0.2 document would, for example,
+escape a `=` heading. With `wikilinks` on, the upgrade also reports the 0.1
+`[[Page]]` spelling and its `:wiki[Page]` rewrite. Included files are not
+checked: the upgrade reads one document at a time, and an include may be code or
+CSV. `carve upgrade` over the source tree covers them.
+
 ## Wiki links
 
 `wikilinks` registers the carve-js `:wiki` matcher (C2-X-057), so
@@ -161,6 +188,7 @@ finding on the next line.
 `:wiki[folder/page]` become links, and resolves each target against content
 collections. The 0.1 `[[Page]]` spelling is not Carve 0.2 syntax: the upgrade
 tool reports it (U-408), and the target is written `:wiki[Page]` instead.
+`upgradeHints` flags the old spelling during a build.
 
 ```js
 carve({

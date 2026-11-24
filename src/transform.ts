@@ -9,6 +9,7 @@ import {
   type RenderOptions,
 } from '@markup-carve/carve'
 import { fileSystemResolver } from '@markup-carve/carve/node'
+import { upgrade } from '@markup-carve/carve/upgrade'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, dirname, relative, resolve as resolvePath } from 'node:path'
 import { load as loadYaml } from 'js-yaml'
@@ -50,6 +51,12 @@ export interface CarveTransformOptions {
    * `false`. `platforms` adds host-specific rules such as `github`.
    */
   lint?: boolean | CarveLintOptions
+  /**
+   * Run the Carve 0.1 to 0.2 upgrade on each document and report each row of
+   * its report as a warning. The file still renders as written.
+   * Default `false`.
+   */
+  upgradeHints?: boolean
   /** Link `:wiki[Page]` targets, resolved against content collections. Default `false`. */
   wikilinks?: boolean | CarveWikilinksOptions
   /**
@@ -62,7 +69,7 @@ export interface CarveTransformOptions {
 export interface CarveLintOptions {
   /** Host-specific rules, such as `github`. */
   platforms?: ('github')[]
-  /** Also report advisory `Hint` findings, such as a thematic break not written `***`. */
+  /** Also report advisory `Hint` findings, such as an inline attribute that attaches to nothing. */
   hints?: boolean
   /** Opt-in rules to run in addition to the defaults. */
   enabledRules?: readonly string[]
@@ -159,6 +166,15 @@ function diagnosticMessage(diagnostic: Diagnostic, source: string, sourcePath?: 
   return `${diagnostic.message} [${diagnostic.code}] (line ${line}, column ${column}${file})`
 }
 
+/** One warning per distinct record of the 0.1 to 0.2 upgrade. */
+function upgradeHints(source: string, wikilinks: boolean): string[] {
+  // A 0.1 host with wikilinks on read `[[Page]]`; the upgrade only respells it when told so.
+  const result = upgrade(source, wikilinks ? { registeredExtensions: ['wikilinks'] } : undefined)
+  // Report rows can come with an unchanged source; `summary` rows are the self-check's own bookkeeping.
+  return [...new Set(result.records.filter(record => record.class !== 'summary').map(record =>
+    `Carve 0.1 source: ${record.message} [${record.entry}]${record.line > 0 ? ` (line ${record.line})` : ''}`))]
+}
+
 /** Text used by Astro's heading metadata. The engine supplies the resolved id. */
 function headingText(nodes: readonly unknown[], symbols: Readonly<Record<string, string>>): string {
   let out = ''
@@ -245,6 +261,7 @@ export function renderCarve(
   const frontmatterData = parseFm && frontmatter ? parseFrontmatterData(frontmatter) : {}
   const diagnostics = [...parsed.diagnostics, ...rendered.diagnostics.filter(diagnostic => diagnostic.channel === 'render-loss'), ...lintDiagnostics]
   const warningMessages = [...diagnostics.map(diagnostic => diagnosticMessage(diagnostic, source, documentPath, includeRoot)), ...wikiWarnings]
+  if (options.upgradeHints) warningMessages.push(...upgradeHints(source, Boolean(wiki)))
   const suppressed = parsed.suppressedDiagnostics + rendered.suppressedDiagnostics
   if (suppressed) warningMessages.push(`${suppressed} more diagnostics were not reported`)
   const dependencies = includeDependencies(parsed.document).flatMap(dependency => {
