@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@markup-carve/carve": "github:markup-carve/carve-js#2003ec4327a736ee29fbb4e6ac108db7c108e50e",
-    "@markup-carve/carve-grammars": "github:markup-carve/carve-grammars#6621ad191d8eddbbb931f6b9e608e6829633c3a2",
+    "@markup-carve/carve-grammars": "github:markup-carve/carve-grammars#5875ac2fa8a7b73d0cd0cfd29206e5a68a96bfb3",
     "js-yaml": "^4.3.2",
     "parse5": "^8.0.1",
     "shiki": "^3.0.0 || ^4.0.0",
