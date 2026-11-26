@@ -10,7 +10,7 @@ with [carve-js](https://github.com/markup-carve/carve-js)
 
 ## Installation notes
 
-`astro` is a peer dependency. carve-js is pinned by commit to its unreleased `next2` branch through npm Git support. Install this integration from its `next2` branch. The engine package builds during installation; Git and Node 20 or newer are required.
+`astro` is a peer dependency. carve-js is pinned by commit to an unreleased `main` commit through npm Git support. Install this integration from its `main` branch. The engine package builds during installation; Git and Node 20 or newer are required.
 
 ## Usage
 
