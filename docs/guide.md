@@ -10,8 +10,7 @@ with [carve-js](https://github.com/markup-carve/carve-js)
 
 ## Installation notes
 
-`astro` is a peer dependency. carve-js (`@markup-carve/carve`) is a regular
-dependency, installed from npm, so the command above is all that is needed.
+`astro` is a peer dependency. carve-js is pinned by commit to its unreleased `next2` branch through npm Git support. Install this integration from its `next2` branch. The engine package builds during installation; Git and Node 20 or newer are required.
 
 ## Usage
 
@@ -34,9 +33,9 @@ Author a Carve document, for example `src/content/doc.crv`:
 title: Carve in Astro
 ---
 
-# Carve in Astro
+= Carve in Astro
 
-A paragraph with *bold*, /emphasis/, and _underline_.
+A paragraph with *bold*, /emphasis/, and {_underline_}.
 
 - one
 - two
@@ -87,8 +86,8 @@ carve({
   // Which module ids count as Carve. Default: /\.crv$/
   include: /\.crv$/,
 
-  // Forwarded to carve-js carveToHtml (extensions, heading-id options, ...).
-  render: {},
+  // Forwarded to the Carve 0.2 renderer. Raw HTML stays off by default.
+  render: { rawHtml: false, headingIds: 'keep-case' },
 
   // Parse YAML frontmatter into frontmatterData. Default true.
   parseFrontmatter: true,
@@ -105,7 +104,10 @@ carve({
   // Report carve-js lint findings as build warnings. Default false.
   lint: true, // or { platforms: ['github'], hints: true, enabledRules: [...] }
 
-  // Parse [[Page]] wiki links. Default false. See "Wiki links" below.
+  // Report what the Carve 0.1 to 0.2 upgrade finds. Default false. See below.
+  upgradeHints: false,
+
+  // Link :wiki[Page] targets. Default false. See "Wiki links" below.
   wikilinks: { collections: [{ base: './src/content/docs', url: '/docs/{id}/' }] },
 
   // Highlight fenced code with Shiki. Default false. See "Syntax highlighting" below.
@@ -113,8 +115,7 @@ carve({
 })
 ```
 
-All carve-js render/parse options (including `extensions` for Tier-2 syntax)
-pass through `render`.
+Carve 0.2 render options, including `extensions`, `renderers`, `headingIds`, `rawHtml` and `urlPolicy`, pass through `render`. The secure default refuses raw HTML and denied URL schemes. `renderers` are trusted host code for registered 0.2 extensions. The old `asciiHeadingIds` and `lowercaseHeadingIds` keys are replaced by `headingIds`.
 
 Include paths resolve relative to the `.crv` file. Included files are watched,
 so editing one invalidates the importing module. Set `includes: false` to leave
@@ -145,8 +146,8 @@ pages, the content-layer log for collections. A finding reads
 finding is inside one. `lint: { platforms: ['github'] }` adds the rules for text
 that GitHub re-links, such as a bare `#12`. Lint never fails the build.
 
-Advisory `Hint` findings, such as a thematic break not written `***`, are left
-out. `lint: { hints: true }` reports them, and `enabledRules` runs opt-in rules
+Advisory `Hint` findings, such as an inline attribute that attaches to nothing,
+are left out. `lint: { hints: true }` reports them, and `enabledRules` runs opt-in rules
 on top of the defaults:
 
 ```js
@@ -156,11 +157,38 @@ carve({ lint: { hints: true, enabledRules: ['non-descriptive-link-text'] } })
 A `%% carve-lint-disable-next-line <rule>` comment in the document silences the
 finding on the next line.
 
+## Carve 0.1 sources
+
+A site moving from Carve 0.1 can set `upgradeHints: true`. Each `.crv` module
+and collection entry then runs through the engine's 0.1 to 0.2 upgrade
+(`@markup-carve/carve/upgrade`), and each distinct row of its report becomes a
+warning in the same channel as lint findings:
+
+```js
+carve({ upgradeHints: true })
+```
+
+```text
+Carve 0.1 source: bare underline put in braces [U-065] (line 4)
+```
+
+Rows such as `U-021` (a one-item loose list turns tight) need a person and
+rewrite nothing; they are reported too. The page still renders as written. Run
+`carve upgrade` on the sources to apply the rewrites, then turn the option off:
+the upgrade reads every input as 0.1 and on a 0.2 document would, for example,
+escape a `=` heading. With `wikilinks` on, the upgrade also reports the 0.1
+`[[Page]]` spelling and its `:wiki[Page]` rewrite. Included files are not
+checked: the upgrade reads one document at a time, and an include may be code or
+CSV. `carve upgrade` over the source tree covers them.
+
 ## Wiki links
 
-`wikilinks` enables the carve-js `[[Page]]` syntax (`[[Page|label]]`,
-`[[Page#anchor]]`, `[[folder/page]]`) and resolves each target against content
-collections:
+`wikilinks` registers the carve-js `:wiki` matcher (C2-X-057), so
+`:wiki[Page]`, `:wiki[Page|label]`, `:wiki[Page#anchor]` and
+`:wiki[folder/page]` become links, and resolves each target against content
+collections. The 0.1 `[[Page]]` spelling is not Carve 0.2 syntax: the upgrade
+tool reports it (U-408), and the target is written `:wiki[Page]` instead.
+`upgradeHints` flags the old spelling during a build.
 
 ```js
 carve({
@@ -178,14 +206,14 @@ carve({
 ```
 
 A page name matches an entry id the way `carveLoader` assigns it (YAML `slug`,
-else the path without `.crv`), compared as a slug, so `[[Getting Started]]`
+else the path without `.crv`), compared as a slug, so `:wiki[Getting Started]`
 finds `getting-started.crv`. A name without a folder also matches a unique file
-name anywhere in the collections, so `[[Tigers]]` finds `guides/tigers.crv`.
+name anywhere in the collections, so `:wiki[Tigers]` finds `guides/tigers.crv`.
 `{id}` in `url` is replaced by the entry id. A target that matches nothing, or
 matches entries in several places, is reported as a warning and links to the
 plain slug.
-`wikilinks: true` turns the syntax on without collections and always uses that
-slug.
+`wikilinks: true` turns the matcher on without collections and always uses that
+slug. Without `wikilinks`, a `:wiki[Page]` target renders as its plain text.
 
 Pass the same `wikilinks` option to `carveLoader` for collection entries. Ids
 from a custom `generateId` are not seen by the resolver; use `resolve` for
@@ -211,10 +239,18 @@ stylesheet once to render those marks:
 import '@markup-carve/carve-grammars/shiki/carve.css'
 ```
 
+Highlighting runs through the engine's `codeBlockRenderer` hook (C2-H-206). A
+`render.codeBlockRenderer` of your own still handles the fences Shiki does not
+take.
+
 A fence's `{#id .class key=value}` attributes and quoted title land on the
 highlighted `<pre>`, which also carries `data-language`. A fence without a
 language, or in a language Shiki does not bundle, keeps the plain
 `<pre><code class="language-x">` output.
+
+## Extensions
+
+The 0.2 extension interface is provisional. Named extension definitions and renderers can be passed through `render.extensions` and `render.renderers` where the engine supports them.
 
 ## Integration surfaces
 

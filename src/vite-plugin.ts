@@ -7,8 +7,8 @@ import {
   renderCarve,
   type CarveTransformOptions,
 } from './transform.js'
-import { WikiIndex } from './wikilinks.js'
 import { codeCollector, highlighterFor } from './highlight.js'
+import { WikiIndex } from './wikilinks.js'
 
 /**
  * Vite plugin that turns Carve modules (`*.crv`) into JavaScript
@@ -41,8 +41,8 @@ export function carveVitePlugin(options: CarveTransformOptions = {}, pageRoot?: 
       if (!filename || !include.test(filename)) return null
 
       const highlighter = await highlighterFor(options.highlight)
-      const collector = highlighter ? codeCollector(highlighter) : undefined
-      const result = renderCarve(source, options, filename, projectRoot, wikiIndex, collector ? [collector.extension] : [])
+      const collector = highlighter ? codeCollector(highlighter, options.render?.codeBlockRenderer) : undefined
+      const result = renderCarve(source, options, filename, projectRoot, wikiIndex, [], collector?.codeBlockRenderer)
       if (collector) result.html = await collector.apply(result.html)
       for (const dependency of result.dependencies) this.addWatchFile(dependency)
       for (const warning of result.warnings) this.warn(warning)

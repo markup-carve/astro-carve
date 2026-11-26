@@ -12,7 +12,7 @@ import { carveVitePlugin } from './vite-plugin.js'
 
 async function render(source: string, options = {}) {
   const collector = codeCollector(await createCarveHighlighter(options))
-  const result = renderCarve(source, {}, undefined, undefined, undefined, [collector.extension])
+  const result = renderCarve(source, {}, undefined, undefined, undefined, [], collector.codeBlockRenderer)
   return collector.apply(result.html)
 }
 

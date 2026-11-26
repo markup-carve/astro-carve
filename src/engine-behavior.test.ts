@@ -25,7 +25,7 @@ describe('engine behavior the transform reaches', () => {
       .toContain('href="#Alpha-Beta">Alpha Beta')
   })
 
-  it('renames every colliding id an include brings in, not only a heading id', () => {
+  it('reports duplicate authored ids in included content under Carve 0.2', () => {
     // Engine 0.1.7 emitted three elements carrying id="dup" from one included
     // file, which is invalid HTML and makes the anchors collide.
     const root = mkdtempSync(join(tmpdir(), 'astro-carve-behavior-'))
@@ -39,9 +39,8 @@ describe('engine behavior the transform reaches', () => {
       )
 
       const ids = [...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1])
-      expect(new Set(ids).size).toBe(ids.length)
-      expect(ids).toContain('dup-2')
-      expect(warnings.filter((warning) => /Id "dup" was renamed/.test(warning))).toHaveLength(2)
+      expect(ids.filter(id => id === 'dup')).toHaveLength(3)
+      expect(warnings.filter((warning) => /Duplicate authored id "dup"/.test(warning))).toHaveLength(2)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -57,5 +56,13 @@ describe('engine behavior the transform reaches', () => {
     expect(warnings).toContain(
       'Blanked a denied destination scheme [destination-denied] (line 1, column 1)',
     )
+  })
+
+  it('counts the diagnostics past the loss cap instead of dropping them', () => {
+    const source = '[a](javascript:1) [b](javascript:2) [c](javascript:3)\n'
+    const { warnings } = renderCarve(source, { render: { maxLosses: 1 } })
+
+    expect(warnings.filter(warning => warning.includes('[destination-denied]'))).toHaveLength(1)
+    expect(warnings).toContain('2 more diagnostics were not reported')
   })
 })
