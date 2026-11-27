@@ -73,6 +73,12 @@ describe('Shiki highlighting', () => {
     expect(html).not.toContain('highlighted-line')
   })
 
+  test('reads HTML attribute names without case sensitivity', async () => {
+    const html = await render('{.line-numbers data-Line-Start=7 data-Highlight=2}\n```js\na\nb\n```\n')
+    expect(html).toContain('data-line-number="7"')
+    expect(html).toMatch(/class="line highlighted-line" data-line-number="8"/)
+  })
+
   test('honors dual themes, aliases and wrap from shikiConfig', async () => {
     const html = await render('``` mylang\nlet a\n```\n', {
       themes: { light: 'github-light', dark: 'github-dark' },

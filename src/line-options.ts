@@ -5,7 +5,7 @@ type Attrs = { classes?: string[]; keyValues?: [string, string][] }
 /** Carve C2-H-211 to C2-H-213, for one Shiki code block. */
 export function lineOptionsTransformer(attrs?: Attrs): ShikiTransformer {
   const numbered = attrs?.classes?.includes('line-numbers') ?? false
-  const values = new Map(attrs?.keyValues ?? [])
+  const values = new Map((attrs?.keyValues ?? []).map(([key, value]) => [key.toLowerCase(), value]))
   const highlight = values.get('data-highlight')
   const startValue = values.get('data-line-start')
   const start = typeof startValue === 'string' && /^[1-9][0-9]*$/.test(startValue) ? BigInt(startValue) : 1n
