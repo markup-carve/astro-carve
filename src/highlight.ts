@@ -7,6 +7,7 @@ import type {
   ShikiTransformer,
   ThemeRegistration,
 } from 'shiki'
+import { lineOptionsTransformer } from './line-options.js'
 
 /** The fields of Astro's `markdown.shikiConfig` that apply to Carve fences. */
 export interface CarveHighlightOptions {
@@ -100,6 +101,7 @@ export async function createCarveHighlighter(options: CarveHighlightOptions = {}
           // Scope explanations are costly, so only Carve fences pay for them.
           ...(carveNames.has(lang) ? [grammars.carveStylingTransformer] : []),
           ...(options.transformers ?? []),
+          lineOptionsTransformer(attrs),
           preAttributes,
         ],
       })

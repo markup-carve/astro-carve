@@ -49,6 +49,36 @@ describe('Shiki highlighting', () => {
     expect(html).toContain('title="src/a.js"')
   })
 
+  test('numbers and highlights lines on a plain code block', async () => {
+    const html = await render('{.line-numbers data-line-start=42 data-highlight=1,3-5}\n```js\na\nb\nc\n```\n')
+    expect(html).toContain('data-line-start="42"')
+    expect(html).toContain('data-highlight="1,3-5"')
+    expect(html).toMatch(/class="line highlighted-line" data-line-number="42"/)
+    expect(html).toMatch(/class="line" data-line-number="43"/)
+    expect(html).toMatch(/class="line highlighted-line" data-line-number="44"/)
+    expect(html).toContain('class="line-number" aria-hidden="true"')
+    expect(html).toContain('>42</span>')
+  })
+
+  test('reads line options from the inner pre of a captioned code block', async () => {
+    const html = await render('{.line-numbers data-line-start=7 data-highlight=2}\n```js\na\nb\n```\n^ A sample.\n')
+    expect(html).toMatch(/<figure(?: [^>]*)?>/)
+    expect(html).toMatch(/<pre[^>]*has-line-numbers[^>]*data-line-start="7"/)
+    expect(html).toMatch(/class="line highlighted-line" data-line-number="8"/)
+  })
+
+  test('uses the default start and no highlights for invalid values', async () => {
+    const html = await render('{.line-numbers data-line-start=auto data-highlight="1, 2"}\n```js\na\nb\n```\n')
+    expect(html).toContain('data-line-number="1"')
+    expect(html).not.toContain('highlighted-line')
+  })
+
+  test('reads HTML attribute names without case sensitivity', async () => {
+    const html = await render('{.line-numbers data-Line-Start=7 data-Highlight=2}\n```js\na\nb\n```\n')
+    expect(html).toContain('data-line-number="7"')
+    expect(html).toMatch(/class="line highlighted-line" data-line-number="8"/)
+  })
+
   test('honors dual themes, aliases and wrap from shikiConfig', async () => {
     const html = await render('``` mylang\nlet a\n```\n', {
       themes: { light: 'github-light', dark: 'github-dark' },
